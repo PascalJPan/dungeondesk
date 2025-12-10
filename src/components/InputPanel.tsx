@@ -5,27 +5,39 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChunkingMethod, ProcessingState, ClusterRange } from '@/types/mindmap';
+import { ChunkingMethod, ProcessingState, ExtractionOptions, EntityType, ENTITY_TYPE_INFO } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 
 interface InputPanelProps {
-  onProcess: (text: string, method: ChunkingMethod, customSize?: number, clusterRange?: ClusterRange) => void;
+  onProcess: (text: string, method: ChunkingMethod, extractionOptions: ExtractionOptions, customSize?: number) => void;
   processingState: ProcessingState;
 }
+
+const ALL_ENTITY_TYPES: EntityType[] = ['location', 'happening', 'character', 'monster', 'item'];
 
 export function InputPanel({ onProcess, processingState }: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
   const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('sentence');
   const [customChunkSize, setCustomChunkSize] = useState(500);
-  const [clusterRange, setClusterRange] = useState<ClusterRange>({ min: 3, max: 7 });
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<EntityType[]>(['location', 'happening', 'character', 'monster']);
+  const [clusterRange, setClusterRange] = useState({ min: 3, max: 15 });
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
+
+  const handleEntityTypeToggle = (type: EntityType, checked: boolean) => {
+    if (checked) {
+      setSelectedEntityTypes(prev => [...prev, type]);
+    } else {
+      setSelectedEntityTypes(prev => prev.filter(t => t !== type));
+    }
+  };
 
   const handleFileUpload = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
@@ -37,7 +49,6 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
     setFileName(file.name);
 
     try {
-      // Use pdf.js for PDF extraction
       const pdfjsLib = await import('pdfjs-dist');
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
@@ -86,19 +97,30 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
   }, [handleFileUpload]);
 
   const handleGenerate = () => {
-    if (!inputText.trim()) return;
-    onProcess(inputText, chunkingMethod, chunkingMethod === 'custom' ? customChunkSize : undefined, clusterRange);
+    if (!inputText.trim() || selectedEntityTypes.length === 0) return;
+    
+    const extractionOptions: ExtractionOptions = {
+      entityTypes: selectedEntityTypes,
+      clusterRange,
+    };
+    
+    onProcess(
+      inputText, 
+      chunkingMethod, 
+      extractionOptions,
+      chunkingMethod === 'custom' ? customChunkSize : undefined
+    );
   };
 
-  const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting;
+  const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && selectedEntityTypes.length > 0;
 
   return (
     <div className="flex flex-col h-full p-4 gap-4 overflow-y-auto scrollbar-thin">
       {/* Header */}
       <div className="space-y-1">
-        <h2 className="text-lg font-mono font-semibold text-foreground">Input</h2>
+        <h2 className="text-lg font-mono font-semibold text-foreground">Campaign Input</h2>
         <p className="text-sm text-muted-foreground">
-          Upload a PDF or paste your text
+          Upload campaign notes or paste text
         </p>
       </div>
 
@@ -157,21 +179,47 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
           <Label className="text-sm text-muted-foreground">Or paste text directly</Label>
         </div>
         <Textarea
-          placeholder="Paste your text here..."
+          placeholder="Paste your campaign notes here..."
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          className="flex-1 min-h-[200px] resize-none bg-muted/30 border-border focus:border-primary/50 text-sm scrollbar-thin"
+          className="flex-1 min-h-[150px] resize-none bg-muted/30 border-border focus:border-primary/50 text-sm scrollbar-thin"
         />
         <div className="text-xs text-muted-foreground text-right">
           {inputText.length.toLocaleString()} characters
         </div>
       </div>
 
-      {/* Chunking Options */}
+      {/* Entity Types */}
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">Extract Entity Types</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {ALL_ENTITY_TYPES.map((type) => (
+            <div key={type} className="flex items-center space-x-2">
+              <Checkbox
+                id={`entity-${type}`}
+                checked={selectedEntityTypes.includes(type)}
+                onCheckedChange={(checked) => handleEntityTypeToggle(type, checked as boolean)}
+              />
+              <Label 
+                htmlFor={`entity-${type}`} 
+                className="text-sm cursor-pointer flex items-center gap-2"
+              >
+                <span 
+                  className="w-2 h-2 rounded-full" 
+                  style={{ backgroundColor: ENTITY_TYPE_INFO[type].color }}
+                />
+                {ENTITY_TYPE_INFO[type].label}
+              </Label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Advanced Options */}
       <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" className="w-full justify-between text-sm">
-            <span className="text-muted-foreground">Chunking Options</span>
+            <span className="text-muted-foreground">Advanced Options</span>
             <ChevronDown className={cn(
               "w-4 h-4 text-muted-foreground transition-transform",
               isAdvancedOpen && "rotate-180"
@@ -187,13 +235,13 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
             <div className="flex items-center space-x-3">
               <RadioGroupItem value="sentence" id="sentence" />
               <Label htmlFor="sentence" className="text-sm cursor-pointer">
-                Sentences <span className="text-muted-foreground">(auto-detects lists)</span>
+                Sentences
               </Label>
             </div>
             <div className="flex items-center space-x-3">
               <RadioGroupItem value="line" id="line" />
               <Label htmlFor="line" className="text-sm cursor-pointer">
-                Lines <span className="text-muted-foreground">(for bullet points & lists)</span>
+                Lines
               </Label>
             </div>
             <div className="flex items-center space-x-3">
@@ -226,7 +274,7 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
 
           {/* Cluster Range */}
           <div className="pt-3 border-t border-border space-y-3">
-            <Label className="text-sm text-muted-foreground">Concept count range</Label>
+            <Label className="text-sm text-muted-foreground">Entities per type range</Label>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span>Min: {clusterRange.min}</span>
@@ -240,7 +288,7 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
                       ...prev, 
                       min: Math.min(v, prev.max - 1) 
                     }))}
-                    min={2}
+                    min={1}
                     max={10}
                     step={1}
                     className="w-full"
@@ -253,7 +301,7 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
                       ...prev, 
                       max: Math.max(v, prev.min + 1) 
                     }))}
-                    min={3}
+                    min={2}
                     max={30}
                     step={1}
                     className="w-full"
@@ -279,7 +327,7 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
             {processingState.message}
           </>
         ) : (
-          'Generate Mindmap'
+          'Extract Campaign'
         )}
       </Button>
 

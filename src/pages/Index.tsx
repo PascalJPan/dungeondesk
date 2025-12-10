@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Brain, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { Map, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { GraphVisualization } from '@/components/GraphVisualization';
 import { DetailsPanel } from '@/components/DetailsPanel';
@@ -7,11 +7,12 @@ import { ControlsPanel } from '@/components/ControlsPanel';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  MindMapData, 
+  CampaignData, 
   GraphNode, 
   ProcessingState, 
   ChunkingMethod,
-  ClusterRange 
+  ExtractionOptions,
+  ENTITY_TYPE_INFO 
 } from '@/types/mindmap';
 import { createChunks, getClusterColor, generateId } from '@/lib/text-processing';
 import { cn } from '@/lib/utils';
@@ -22,9 +23,8 @@ export default function Index() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [activeRightTab, setActiveRightTab] = useState<'details' | 'controls'>('controls');
   
-  const [mindMapData, setMindMapData] = useState<MindMapData | null>(null);
+  const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [similarityThreshold, setSimilarityThreshold] = useState(0.3);
   
   const [processingState, setProcessingState] = useState<ProcessingState>({
     status: 'idle',
@@ -37,8 +37,8 @@ export default function Index() {
   const handleProcess = useCallback(async (
     text: string, 
     method: ChunkingMethod, 
-    customSize?: number,
-    clusterRange?: ClusterRange
+    extractionOptions: ExtractionOptions,
+    customSize?: number
   ) => {
     const startTime = Date.now();
     
@@ -53,17 +53,16 @@ export default function Index() {
       const chunks = createChunks(text, method, customSize);
       
       if (chunks.length < 3) {
-        throw new Error('Not enough text to generate a meaningful mindmap. Please provide more content.');
+        throw new Error('Not enough meaningful content to extract. Please provide more text.');
       }
 
-      // Step 2: Generate embeddings
+      // Step 2: Extract entities
       setProcessingState({
         status: 'embedding',
         progress: 30,
-        message: 'Generating embeddings...',
+        message: 'Extracting campaign entities...',
       });
 
-      // Call the edge function for embeddings and clustering
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-mindmap`, {
         method: 'POST',
         headers: {
@@ -72,13 +71,13 @@ export default function Index() {
         },
         body: JSON.stringify({ 
           chunks: chunks.map(c => c.text),
-          clusterRange: clusterRange || { min: 3, max: 7 }
+          extractionOptions,
         }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to process text');
+        throw new Error(error.error || 'Failed to extract campaign data');
       }
 
       const result = await response.json();
@@ -86,34 +85,35 @@ export default function Index() {
       setProcessingState({
         status: 'generating',
         progress: 80,
-        message: 'Building concept graph...',
+        message: 'Building campaign graph...',
       });
 
-      // Build the graph from clusters
-      const nodes: GraphNode[] = result.clusters.map((cluster: any) => ({
-        id: `node-${cluster.id}`,
-        clusterId: cluster.id,
-        label: cluster.label,
-        summary: cluster.summary,
-        chunkCount: cluster.chunkIndices.length,
-        chunks: cluster.chunkIndices.map((idx: number) => chunks[idx]),
-        color: getClusterColor(cluster.id),
+      // Build the graph from entities
+      const nodes: GraphNode[] = result.entities.map((entity: any, idx: number) => ({
+        id: `node-${entity.type}-${idx}`,
+        clusterId: idx,
+        type: entity.type,
+        label: entity.label,
+        summary: entity.summary,
+        chunkCount: entity.chunkIndices.length,
+        chunks: entity.chunkIndices.map((i: number) => chunks[i]),
+        color: ENTITY_TYPE_INFO[entity.type as keyof typeof ENTITY_TYPE_INFO]?.color || '#888',
       }));
 
-      // Create edges based on similarity
-      const edges = result.edges.map((edge: any) => ({
-        id: `edge-${edge.source}-${edge.target}`,
-        source: `node-${edge.source}`,
-        target: `node-${edge.target}`,
-        similarity: edge.similarity,
+      // Create edges based on AI relationships
+      const edges = result.relationships.map((rel: any, idx: number) => ({
+        id: `edge-${idx}`,
+        source: `node-${rel.sourceType}-${rel.sourceIndex}`,
+        target: `node-${rel.targetType}-${rel.targetIndex}`,
+        relationship: rel.description,
       }));
 
       const processingTime = Date.now() - startTime;
 
-      setMindMapData({
+      setCampaignData({
         nodes,
         edges,
-        clusters: result.clusters,
+        clusters: result.entities,
         totalChunks: chunks.length,
         processingTime,
       });
@@ -125,8 +125,8 @@ export default function Index() {
       });
 
       toast({
-        title: "Mindmap generated",
-        description: `Created ${nodes.length} concepts from ${chunks.length} chunks`,
+        title: "Campaign extracted",
+        description: `Found ${nodes.length} entities with ${edges.length} relationships`,
       });
 
     } catch (error) {
@@ -154,14 +154,14 @@ export default function Index() {
       <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-            <Brain className="w-5 h-5 text-primary" />
+            <Map className="w-5 h-5 text-primary" />
           </div>
           <h1 className="font-mono font-semibold text-lg text-foreground">
-            MindMap Extractor
+            Campaign Editor
           </h1>
         </div>
         <p className="text-sm text-muted-foreground hidden sm:block">
-          Transform text into visual concept maps
+          Extract &amp; visualize D&amp;D campaign elements
         </p>
       </header>
 
@@ -194,8 +194,7 @@ export default function Index() {
         {/* Graph Area */}
         <main className="flex-1 min-w-0 relative" ref={graphRef}>
           <GraphVisualization 
-            data={mindMapData}
-            similarityThreshold={similarityThreshold}
+            data={campaignData}
             onNodeSelect={handleNodeSelect}
             selectedNodeId={selectedNode?.id || null}
           />
@@ -247,15 +246,13 @@ export default function Index() {
                 <TabsContent value="details" className="flex-1 m-0 min-h-0">
                   <DetailsPanel 
                     selectedNode={selectedNode}
-                    data={mindMapData}
+                    data={campaignData}
                     onClose={() => setSelectedNode(null)}
                   />
                 </TabsContent>
                 <TabsContent value="controls" className="flex-1 m-0 min-h-0 overflow-y-auto scrollbar-thin">
                   <ControlsPanel 
-                    data={mindMapData}
-                    similarityThreshold={similarityThreshold}
-                    onThresholdChange={setSimilarityThreshold}
+                    data={campaignData}
                     graphRef={graphRef}
                   />
                 </TabsContent>
