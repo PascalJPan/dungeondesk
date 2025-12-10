@@ -1,13 +1,16 @@
+export type EntityType = 'location' | 'happening' | 'character' | 'monster' | 'item';
+
 export interface TextChunk {
   id: string;
   text: string;
   index: number;
   embedding?: number[];
-  clusterId?: number;
+  clusterIds?: number[]; // Can belong to multiple clusters
 }
 
 export interface Cluster {
   id: number;
+  type: EntityType;
   label: string;
   summary: string;
   chunks: TextChunk[];
@@ -18,6 +21,7 @@ export interface Cluster {
 export interface GraphNode {
   id: string;
   clusterId: number;
+  type: EntityType;
   label: string;
   summary: string;
   chunkCount: number;
@@ -31,16 +35,19 @@ export interface GraphEdge {
   id: string;
   source: string;
   target: string;
-  similarity: number;
+  relationship: string; // Description of the relationship
 }
 
-export interface MindMapData {
+export interface CampaignData {
   nodes: GraphNode[];
   edges: GraphEdge[];
   clusters: Cluster[];
   totalChunks: number;
   processingTime: number;
 }
+
+// Legacy alias for compatibility
+export type MindMapData = CampaignData;
 
 export type ChunkingMethod = 'sentence' | 'paragraph' | 'line' | 'custom';
 
@@ -49,9 +56,14 @@ export interface ClusterRange {
   max: number;
 }
 
+export interface ExtractionOptions {
+  entityTypes: EntityType[];
+  clusterRange: ClusterRange;
+}
+
 export interface ProcessingOptions {
   chunkingMethod: ChunkingMethod;
-  clusterRange?: ClusterRange;
+  extractionOptions: ExtractionOptions;
   customChunkSize?: number;
   similarityThreshold: number;
   maxClusters: number;
@@ -67,3 +79,12 @@ export interface ProcessingState {
 export interface ExportOptions {
   format: 'png' | 'svg' | 'json' | 'markdown';
 }
+
+// Entity type display info
+export const ENTITY_TYPE_INFO: Record<EntityType, { label: string; color: string; row: number }> = {
+  location: { label: 'Locations', color: '#10b981', row: 0 },
+  happening: { label: 'Happenings', color: '#f59e0b', row: 1 },
+  character: { label: 'Characters', color: '#3b82f6', row: 2 },
+  monster: { label: 'Monsters', color: '#ef4444', row: 2 },
+  item: { label: 'Items', color: '#8b5cf6', row: 2 },
+};

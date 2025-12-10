@@ -5,27 +5,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ClusterResult {
-  id: number;
+interface EntityResult {
+  type: string;
   label: string;
   summary: string;
   chunkIndices: number[];
 }
 
-interface EdgeResult {
-  source: number;
-  target: number;
-  similarity: number;
+interface RelationshipResult {
+  sourceType: string;
+  sourceIndex: number;
+  targetType: string;
+  targetIndex: number;
+  description: string;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { chunks, clusterRange = { min: 3, max: 7 } } = await req.json();
+    const { chunks, extractionOptions } = await req.json();
     
     if (!chunks || !Array.isArray(chunks) || chunks.length < 3) {
       return new Response(
@@ -34,52 +35,71 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Processing ${chunks.length} chunks`);
+    const entityTypes = extractionOptions?.entityTypes || ['location', 'happening', 'character', 'monster'];
+    const clusterRange = extractionOptions?.clusterRange || { min: 3, max: 15 };
+
+    console.log(`Processing ${chunks.length} chunks for entity types: ${entityTypes.join(', ')}`);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    // Limit chunks for processing (max 50 for performance)
-    const processedChunks = chunks.slice(0, 50);
+    const processedChunks = chunks.slice(0, 100);
     
-    // Create numbered list of chunks for the AI
     const numberedChunks = processedChunks
-      .map((chunk: string, i: number) => `[${i}] ${chunk.substring(0, 300)}${chunk.length > 300 ? '...' : ''}`)
+      .map((chunk: string, i: number) => `[${i}] ${chunk.substring(0, 400)}${chunk.length > 400 ? '...' : ''}`)
       .join('\n\n');
 
-    // Step 1: Identify themes and cluster chunks
-    console.log('Identifying themes and clustering...');
+    // Step 1: Extract entities by type
+    console.log('Extracting campaign entities...');
     
-    const clusteringPrompt = `Analyze these text chunks and identify ${clusterRange.min}-${clusterRange.max} main themes/concepts. Group the chunks by theme.
+    const entityTypeDescriptions = {
+      location: 'Places, regions, cities, dungeons, buildings, landmarks',
+      happening: 'Events, encounters, plot points, quests, scenes',
+      character: 'NPCs, allies, villains, named individuals',
+      monster: 'Creatures, beasts, enemies, bosses',
+      item: 'Magical items, artifacts, weapons, treasures',
+    };
+
+    const typeInstructions = entityTypes
+      .map((t: string) => `- ${t}: ${entityTypeDescriptions[t as keyof typeof entityTypeDescriptions] || t}`)
+      .join('\n');
+
+    const extractionPrompt = `You are analyzing D&D campaign notes. Extract all mentioned entities from the text chunks below.
+
+ENTITY TYPES TO EXTRACT:
+${typeInstructions}
 
 TEXT CHUNKS:
 ${numberedChunks}
 
-Respond with a JSON object in this exact format:
+RULES:
+1. Extract ${clusterRange.min}-${clusterRange.max} entities PER TYPE that is mentioned in the text
+2. Each entity can reference MULTIPLE chunk indices if it appears in multiple places
+3. Summaries should be 2-4 sentences describing the entity in detail
+4. Labels should be the entity's name or a short descriptive title (3-6 words max)
+5. Write summaries as direct statements, never starting with "This is..." or "This entity..."
+
+Respond with ONLY valid JSON in this exact format:
 {
-  "clusters": [
+  "entities": [
     {
-      "id": 0,
-      "label": "Short Theme Label (3-5 words)",
-      "summary": "Direct statement about the concept (no filler phrases)",
-      "chunkIndices": [0, 3, 5]
+      "type": "location",
+      "label": "The Sunken Temple",
+      "summary": "Ancient temple dedicated to a forgotten sea god, now partially submerged beneath the Mistwood Swamp. Contains valuable artifacts but is guarded by aquatic undead. The central altar still radiates divine energy.",
+      "chunkIndices": [0, 3, 12]
+    },
+    {
+      "type": "character", 
+      "label": "Baron Valdris",
+      "summary": "Cursed nobleman seeking the Phoenix Flame to break his pact with a demon. Commands a small army of mercenaries. Known for his silver tongue and ruthless ambition.",
+      "chunkIndices": [2, 5, 8]
     }
   ]
-}
+}`;
 
-Rules:
-- Each chunk index must appear in exactly one cluster
-- Create between ${clusterRange.min}-${clusterRange.max} clusters based on the content
-- Labels should be concise and descriptive
-- Summaries MUST be direct statements without introductory phrases. 
-  BAD: "This cluster reveals the Baron's objective to find the Phoenix"
-  GOOD: "Baron's objective: to find the Phoenix, hoping it will free his soul"
-- Never start summaries with "This cluster...", "This section...", "This concept...", "Here we see..."
-- Only output valid JSON, no other text`;
-
-    const clusterResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const entityResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,
@@ -88,131 +108,152 @@ Rules:
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'You are a text analysis assistant that identifies themes and clusters related content. Always respond with valid JSON only.' },
-          { role: 'user', content: clusteringPrompt }
+          { role: 'system', content: 'You are a D&D campaign analyzer. Extract entities precisely and respond only with valid JSON.' },
+          { role: 'user', content: extractionPrompt }
         ],
         temperature: 0.3,
       }),
     });
 
-    if (!clusterResponse.ok) {
-      const errorText = await clusterResponse.text();
-      console.error('Clustering API error:', clusterResponse.status, errorText);
+    if (!entityResponse.ok) {
+      const errorText = await entityResponse.text();
+      console.error('Entity extraction API error:', entityResponse.status, errorText);
       
-      if (clusterResponse.status === 429) {
+      if (entityResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (clusterResponse.status === 402) {
+      if (entityResponse.status === 402) {
         return new Response(
           JSON.stringify({ error: 'API credits exhausted. Please add credits to continue.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      throw new Error(`AI API error: ${clusterResponse.status}`);
+      throw new Error(`AI API error: ${entityResponse.status}`);
     }
 
-    const clusterData = await clusterResponse.json();
-    const clusterContent = clusterData.choices?.[0]?.message?.content || '';
+    const entityData = await entityResponse.json();
+    const entityContent = entityData.choices?.[0]?.message?.content || '';
     
-    console.log('Raw cluster response:', clusterContent.substring(0, 500));
+    console.log('Raw entity response:', entityContent.substring(0, 500));
 
-    // Parse the JSON from the response
-    let clusters: ClusterResult[];
+    let entities: EntityResult[];
     try {
-      // Extract JSON from potential markdown code blocks
-      const jsonMatch = clusterContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || 
-                        clusterContent.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : clusterContent;
+      const jsonMatch = entityContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || 
+                        entityContent.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : entityContent;
       const parsed = JSON.parse(jsonStr.trim());
-      clusters = parsed.clusters || parsed;
+      entities = parsed.entities || [];
       
-      if (!Array.isArray(clusters)) {
-        throw new Error('Invalid clusters format');
+      if (!Array.isArray(entities)) {
+        throw new Error('Invalid entities format');
       }
     } catch (parseError) {
-      console.error('JSON parse error:', parseError, 'Content:', clusterContent);
+      console.error('JSON parse error:', parseError);
+      // Fallback: create basic entities
+      entities = entityTypes.flatMap((type: string, typeIdx: number) => [{
+        type,
+        label: `${type.charAt(0).toUpperCase() + type.slice(1)} ${typeIdx + 1}`,
+        summary: `Extracted ${type} from campaign notes`,
+        chunkIndices: [typeIdx % processedChunks.length],
+      }]);
+    }
+
+    // Filter to only requested types
+    entities = entities.filter(e => entityTypes.includes(e.type));
+
+    console.log(`Extracted ${entities.length} entities`);
+
+    // Step 2: Generate relationships between entities
+    console.log('Generating relationships...');
+
+    const entityList = entities.map((e, i) => `[${e.type}:${i}] ${e.label}`).join('\n');
+
+    const relationshipPrompt = `Given these D&D campaign entities, identify the relationships between them.
+
+ENTITIES:
+${entityList}
+
+ENTITY SUMMARIES:
+${entities.map((e, i) => `[${e.type}:${i}] ${e.label}: ${e.summary}`).join('\n\n')}
+
+Generate relationships following these rules:
+1. Locations can contain happenings, characters, monsters, and items
+2. Happenings involve characters, monsters, and can occur at locations
+3. Characters and monsters can appear at locations and in happenings
+4. Items can be found at locations, owned by characters, or dropped by monsters
+5. Only create relationships that make logical sense based on the summaries
+6. Each relationship needs a brief description (3-8 words)
+
+Respond with ONLY valid JSON:
+{
+  "relationships": [
+    {
+      "sourceType": "location",
+      "sourceIndex": 0,
+      "targetType": "happening",
+      "targetIndex": 1,
+      "description": "takes place at"
+    },
+    {
+      "sourceType": "monster",
+      "sourceIndex": 0,
+      "targetType": "location", 
+      "targetIndex": 0,
+      "description": "guards"
+    }
+  ]
+}`;
+
+    const relationshipResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: 'You are a D&D campaign relationship analyzer. Identify connections between entities and respond only with valid JSON.' },
+          { role: 'user', content: relationshipPrompt }
+        ],
+        temperature: 0.3,
+      }),
+    });
+
+    let relationships: RelationshipResult[] = [];
+
+    if (relationshipResponse.ok) {
+      const relData = await relationshipResponse.json();
+      const relContent = relData.choices?.[0]?.message?.content || '';
       
-      // Fallback: create simple clusters based on chunk count
-      const clusterCount = Math.min(clusterRange.max, Math.max(clusterRange.min, Math.ceil(processedChunks.length / 5)));
-      clusters = [];
-      for (let i = 0; i < clusterCount; i++) {
-        const start = Math.floor(i * processedChunks.length / clusterCount);
-        const end = Math.floor((i + 1) * processedChunks.length / clusterCount);
-        clusters.push({
-          id: i,
-          label: `Concept ${i + 1}`,
-          summary: `Group of related ideas from the text`,
-          chunkIndices: Array.from({ length: end - start }, (_, j) => start + j),
-        });
+      console.log('Raw relationship response:', relContent.substring(0, 500));
+
+      try {
+        const jsonMatch = relContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || 
+                          relContent.match(/\{[\s\S]*\}/);
+        const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : relContent;
+        const parsed = JSON.parse(jsonStr.trim());
+        relationships = parsed.relationships || [];
+      } catch (e) {
+        console.error('Relationship parse error:', e);
       }
     }
 
-    // Ensure all chunks are assigned
-    const assignedIndices = new Set(clusters.flatMap(c => c.chunkIndices));
-    const unassigned = processedChunks
-      .map((_, i) => i)
-      .filter(i => !assignedIndices.has(i));
-    
-    if (unassigned.length > 0) {
-      // Add unassigned to the first cluster or create a misc cluster
-      if (clusters.length > 0) {
-        clusters[0].chunkIndices.push(...unassigned);
-      } else {
-        clusters.push({
-          id: 0,
-          label: 'General Content',
-          summary: 'Miscellaneous content from the text',
-          chunkIndices: unassigned,
-        });
-      }
-    }
+    // Validate relationships
+    relationships = relationships.filter(rel => {
+      const sourceExists = entities.some((e, i) => e.type === rel.sourceType && i === rel.sourceIndex);
+      const targetExists = entities.some((e, i) => e.type === rel.targetType && i === rel.targetIndex);
+      return sourceExists && targetExists;
+    });
 
-    // Normalize cluster IDs
-    clusters = clusters.map((c, i) => ({ ...c, id: i }));
-
-    console.log(`Created ${clusters.length} clusters`);
-
-    // Step 2: Generate edges based on theme similarity
-    console.log('Generating edges...');
-    
-    const edges: EdgeResult[] = [];
-    
-    // Create edges between clusters with decreasing similarity based on content overlap potential
-    for (let i = 0; i < clusters.length; i++) {
-      for (let j = i + 1; j < clusters.length; j++) {
-        // Calculate similarity based on relative position and size
-        const sizeFactor = Math.min(clusters[i].chunkIndices.length, clusters[j].chunkIndices.length) / 
-                          Math.max(clusters[i].chunkIndices.length, clusters[j].chunkIndices.length);
-        
-        // Check for adjacent chunks (indicates potential topical proximity)
-        const indices1 = new Set(clusters[i].chunkIndices);
-        const indices2 = clusters[j].chunkIndices;
-        const adjacentCount = indices2.filter(idx => 
-          indices1.has(idx - 1) || indices1.has(idx + 1)
-        ).length;
-        
-        const adjacencyBonus = adjacentCount > 0 ? 0.2 : 0;
-        const baseSimilarity = 0.3 + Math.random() * 0.4; // Base similarity with some variance
-        const similarity = Math.min(1, baseSimilarity * sizeFactor + adjacencyBonus);
-        
-        if (similarity > 0.2) {
-          edges.push({
-            source: i,
-            target: j,
-            similarity: Math.round(similarity * 100) / 100,
-          });
-        }
-      }
-    }
-
-    console.log(`Created ${edges.length} edges`);
+    console.log(`Created ${relationships.length} relationships`);
 
     const result = {
-      clusters,
-      edges,
+      entities,
+      relationships,
       totalChunks: processedChunks.length,
     };
 
