@@ -42,7 +42,7 @@ export interface MindMapData {
   processingTime: number;
 }
 
-export type ChunkingMethod = 'sentence' | 'paragraph' | 'custom';
+export type ChunkingMethod = 'sentence' | 'paragraph' | 'line' | 'custom';
 
 export interface ProcessingOptions {
   chunkingMethod: ChunkingMethod;
