@@ -63,7 +63,7 @@ Respond with a JSON object in this exact format:
     {
       "id": 0,
       "label": "Short Theme Label (3-5 words)",
-      "summary": "One sentence summary of this concept",
+      "summary": "Direct statement about the concept (no filler phrases)",
       "chunkIndices": [0, 3, 5]
     }
   ]
@@ -73,7 +73,10 @@ Rules:
 - Each chunk index must appear in exactly one cluster
 - Create between ${clusterRange.min}-${clusterRange.max} clusters based on the content
 - Labels should be concise and descriptive
-- Summaries should capture the essence of the grouped content
+- Summaries MUST be direct statements without introductory phrases. 
+  BAD: "This cluster reveals the Baron's objective to find the Phoenix"
+  GOOD: "Baron's objective: to find the Phoenix, hoping it will free his soul"
+- Never start summaries with "This cluster...", "This section...", "This concept...", "Here we see..."
 - Only output valid JSON, no other text`;
 
     const clusterResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
