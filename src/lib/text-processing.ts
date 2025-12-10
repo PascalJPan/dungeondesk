@@ -20,9 +20,35 @@ export function cleanText(text: string): string {
 }
 
 /**
- * Split text into sentences
+ * Check if text is list-heavy (many bullet points or short lines)
+ */
+export function isListHeavy(text: string): boolean {
+  const lines = text.split(/\n/).filter(l => l.trim().length > 0);
+  if (lines.length < 3) return false;
+  
+  const bulletLines = lines.filter(l => /^\s*[*\-•→►▸]\s/.test(l) || /^\s*\d+[.)]\s/.test(l));
+  return bulletLines.length / lines.length > 0.3;
+}
+
+/**
+ * Split text into lines (for bullet points, lists, notes)
+ */
+export function splitIntoLines(text: string): string[] {
+  return text
+    .split(/\n/)
+    .map(line => line.replace(/^\s*[*\-•→►▸]\s*/, '').trim()) // Remove bullet markers
+    .filter(line => line.length > 10);
+}
+
+/**
+ * Split text into sentences with bullet point support
  */
 export function splitIntoSentences(text: string): string[] {
+  // If text is list-heavy, use line-based splitting instead
+  if (isListHeavy(text)) {
+    return splitIntoLines(text);
+  }
+
   // Handle common abbreviations
   const abbrevProtected = text
     .replace(/Mr\./g, 'Mr<DOT>')
@@ -41,7 +67,7 @@ export function splitIntoSentences(text: string): string[] {
   const sentences = abbrevProtected
     .split(/(?<=[.!?])\s+(?=[A-Z])/g)
     .map(s => s.replace(/<DOT>/g, '.').trim())
-    .filter(s => s.length > 10); // Filter out very short fragments
+    .filter(s => s.length > 10);
 
   return sentences;
 }
@@ -99,6 +125,9 @@ export function createChunks(
       break;
     case 'paragraph':
       segments = splitIntoParagraphs(cleanedText);
+      break;
+    case 'line':
+      segments = splitIntoLines(cleanedText);
       break;
     case 'custom':
       segments = splitIntoCustomChunks(cleanedText, customSize || 500);

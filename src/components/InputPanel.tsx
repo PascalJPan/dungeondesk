@@ -185,7 +185,13 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
             <div className="flex items-center space-x-3">
               <RadioGroupItem value="sentence" id="sentence" />
               <Label htmlFor="sentence" className="text-sm cursor-pointer">
-                Sentences <span className="text-muted-foreground">(recommended)</span>
+                Sentences <span className="text-muted-foreground">(auto-detects lists)</span>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3">
+              <RadioGroupItem value="line" id="line" />
+              <Label htmlFor="line" className="text-sm cursor-pointer">
+                Lines <span className="text-muted-foreground">(for bullet points & lists)</span>
               </Label>
             </div>
             <div className="flex items-center space-x-3">
