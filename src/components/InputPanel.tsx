@@ -6,11 +6,12 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChunkingMethod, ProcessingState } from '@/types/mindmap';
+import { ChunkingMethod, ProcessingState, ClusterRange } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
+import { Slider } from '@/components/ui/slider';
 
 interface InputPanelProps {
-  onProcess: (text: string, method: ChunkingMethod, customSize?: number) => void;
+  onProcess: (text: string, method: ChunkingMethod, customSize?: number, clusterRange?: ClusterRange) => void;
   processingState: ProcessingState;
 }
 
@@ -19,6 +20,7 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('sentence');
   const [customChunkSize, setCustomChunkSize] = useState(500);
+  const [clusterRange, setClusterRange] = useState<ClusterRange>({ min: 3, max: 7 });
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -85,7 +87,7 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
 
   const handleGenerate = () => {
     if (!inputText.trim()) return;
-    onProcess(inputText, chunkingMethod, chunkingMethod === 'custom' ? customChunkSize : undefined);
+    onProcess(inputText, chunkingMethod, chunkingMethod === 'custom' ? customChunkSize : undefined, clusterRange);
   };
 
   const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting;
@@ -221,6 +223,45 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
               <span className="text-xs text-muted-foreground">characters</span>
             </div>
           )}
+
+          {/* Cluster Range */}
+          <div className="pt-3 border-t border-border space-y-3">
+            <Label className="text-sm text-muted-foreground">Concept count range</Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span>Min: {clusterRange.min}</span>
+                <span>Max: {clusterRange.max}</span>
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1 space-y-1">
+                  <Slider
+                    value={[clusterRange.min]}
+                    onValueChange={([v]) => setClusterRange(prev => ({ 
+                      ...prev, 
+                      min: Math.min(v, prev.max - 1) 
+                    }))}
+                    min={2}
+                    max={10}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Slider
+                    value={[clusterRange.max]}
+                    onValueChange={([v]) => setClusterRange(prev => ({ 
+                      ...prev, 
+                      max: Math.max(v, prev.min + 1) 
+                    }))}
+                    min={3}
+                    max={15}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </CollapsibleContent>
       </Collapsible>
 

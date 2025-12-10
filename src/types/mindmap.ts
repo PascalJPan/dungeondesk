@@ -44,8 +44,14 @@ export interface MindMapData {
 
 export type ChunkingMethod = 'sentence' | 'paragraph' | 'line' | 'custom';
 
+export interface ClusterRange {
+  min: number;
+  max: number;
+}
+
 export interface ProcessingOptions {
   chunkingMethod: ChunkingMethod;
+  clusterRange?: ClusterRange;
   customChunkSize?: number;
   similarityThreshold: number;
   maxClusters: number;
