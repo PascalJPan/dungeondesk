@@ -254,7 +254,7 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
                       max: Math.max(v, prev.min + 1) 
                     }))}
                     min={3}
-                    max={15}
+                    max={30}
                     step={1}
                     className="w-full"
                   />
