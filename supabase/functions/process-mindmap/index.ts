@@ -25,7 +25,7 @@ serve(async (req) => {
   }
 
   try {
-    const { chunks } = await req.json();
+    const { chunks, clusterRange = { min: 3, max: 7 } } = await req.json();
     
     if (!chunks || !Array.isArray(chunks) || chunks.length < 3) {
       return new Response(
@@ -52,7 +52,7 @@ serve(async (req) => {
     // Step 1: Identify themes and cluster chunks
     console.log('Identifying themes and clustering...');
     
-    const clusteringPrompt = `Analyze these text chunks and identify 3-7 main themes/concepts. Group the chunks by theme.
+    const clusteringPrompt = `Analyze these text chunks and identify ${clusterRange.min}-${clusterRange.max} main themes/concepts. Group the chunks by theme.
 
 TEXT CHUNKS:
 ${numberedChunks}
@@ -71,7 +71,7 @@ Respond with a JSON object in this exact format:
 
 Rules:
 - Each chunk index must appear in exactly one cluster
-- Create between 3-7 clusters based on the content
+- Create between ${clusterRange.min}-${clusterRange.max} clusters based on the content
 - Labels should be concise and descriptive
 - Summaries should capture the essence of the grouped content
 - Only output valid JSON, no other text`;
@@ -133,7 +133,7 @@ Rules:
       console.error('JSON parse error:', parseError, 'Content:', clusterContent);
       
       // Fallback: create simple clusters based on chunk count
-      const clusterCount = Math.min(5, Math.ceil(processedChunks.length / 5));
+      const clusterCount = Math.min(clusterRange.max, Math.max(clusterRange.min, Math.ceil(processedChunks.length / 5)));
       clusters = [];
       for (let i = 0; i < clusterCount; i++) {
         const start = Math.floor(i * processedChunks.length / clusterCount);

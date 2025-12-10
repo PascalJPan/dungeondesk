@@ -10,7 +10,8 @@ import {
   MindMapData, 
   GraphNode, 
   ProcessingState, 
-  ChunkingMethod 
+  ChunkingMethod,
+  ClusterRange 
 } from '@/types/mindmap';
 import { createChunks, getClusterColor, generateId } from '@/lib/text-processing';
 import { cn } from '@/lib/utils';
@@ -36,7 +37,8 @@ export default function Index() {
   const handleProcess = useCallback(async (
     text: string, 
     method: ChunkingMethod, 
-    customSize?: number
+    customSize?: number,
+    clusterRange?: ClusterRange
   ) => {
     const startTime = Date.now();
     
@@ -68,7 +70,10 @@ export default function Index() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ chunks: chunks.map(c => c.text) }),
+        body: JSON.stringify({ 
+          chunks: chunks.map(c => c.text),
+          clusterRange: clusterRange || { min: 3, max: 7 }
+        }),
       });
 
       if (!response.ok) {
