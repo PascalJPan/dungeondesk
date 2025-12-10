@@ -1,7 +1,7 @@
 import { TextChunk, ChunkingMethod } from '@/types/mindmap';
 
 /**
- * Clean text by removing common artifacts
+ * Clean text by removing common artifacts and markdown syntax
  */
 export function cleanText(text: string): string {
   return text
@@ -17,6 +17,45 @@ export function cleanText(text: string): string {
     // Remove common headers/footers patterns
     .replace(/^(confidential|draft|internal use only).*$/gim, '')
     .trim();
+}
+
+/**
+ * Clean markdown syntax from text (for display in excerpts)
+ */
+export function cleanMarkdown(text: string): string {
+  return text
+    // Remove headers (# ## ### etc.)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold (**text** or __text__)
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    // Remove italic (*text* or _text_)
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    // Remove code blocks
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove links [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove horizontal rules
+    .replace(/^[-*_]{3,}$/gm, '')
+    .trim();
+}
+
+/**
+ * Split text by markdown headers (creates chunks at each header boundary)
+ */
+export function splitByHeaders(text: string): string[] {
+  // Split on markdown headers (# ## ### etc.)
+  const headerPattern = /^(?=#{1,6}\s)/gm;
+  const sections = text.split(headerPattern).filter(s => s.trim().length > 20);
+  
+  // If no headers found, return null to fall back to other methods
+  if (sections.length <= 1) {
+    return [];
+  }
+  
+  return sections.map(s => s.trim());
 }
 
 /**
@@ -119,26 +158,61 @@ export function createChunks(
   const cleanedText = cleanText(text);
   let segments: string[];
 
-  switch (method) {
-    case 'sentence':
-      segments = splitIntoSentences(cleanedText);
-      break;
-    case 'paragraph':
-      segments = splitIntoParagraphs(cleanedText);
-      break;
-    case 'line':
-      segments = splitIntoLines(cleanedText);
-      break;
-    case 'custom':
-      segments = splitIntoCustomChunks(cleanedText, customSize || 500);
-      break;
-    default:
-      segments = splitIntoSentences(cleanedText);
+  // First, try to split by headers if present (respects markdown structure)
+  const headerSections = splitByHeaders(cleanedText);
+  
+  if (headerSections.length > 0) {
+    // If we have header sections, further split them based on method
+    segments = [];
+    for (const section of headerSections) {
+      let sectionChunks: string[];
+      switch (method) {
+        case 'sentence':
+          sectionChunks = splitIntoSentences(section);
+          break;
+        case 'paragraph':
+          sectionChunks = splitIntoParagraphs(section);
+          break;
+        case 'line':
+          sectionChunks = splitIntoLines(section);
+          break;
+        case 'custom':
+          sectionChunks = splitIntoCustomChunks(section, customSize || 500);
+          break;
+        default:
+          sectionChunks = splitIntoSentences(section);
+      }
+      // If section is small enough, keep it as one chunk
+      if (sectionChunks.length === 0 || section.length < 200) {
+        segments.push(section);
+      } else {
+        segments.push(...sectionChunks);
+      }
+    }
+  } else {
+    // No headers, use original method
+    switch (method) {
+      case 'sentence':
+        segments = splitIntoSentences(cleanedText);
+        break;
+      case 'paragraph':
+        segments = splitIntoParagraphs(cleanedText);
+        break;
+      case 'line':
+        segments = splitIntoLines(cleanedText);
+        break;
+      case 'custom':
+        segments = splitIntoCustomChunks(cleanedText, customSize || 500);
+        break;
+      default:
+        segments = splitIntoSentences(cleanedText);
+    }
   }
 
+  // Clean markdown from each segment for cleaner excerpts
   return segments.map((text, index) => ({
     id: `chunk-${index}`,
-    text,
+    text: cleanMarkdown(text),
     index,
   }));
 }
