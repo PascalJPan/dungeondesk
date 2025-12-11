@@ -1,18 +1,14 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, Type, ChevronDown, Loader2 } from 'lucide-react';
+import { Upload, FileText, Type, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChunkingMethod, ProcessingState, ExtractionOptions, EntityType, ENTITY_TYPE_INFO } from '@/types/mindmap';
+import { ProcessingState, ExtractionOptions, EntityType, ENTITY_TYPE_INFO } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
-import { Slider } from '@/components/ui/slider';
 
 interface InputPanelProps {
-  onProcess: (text: string, method: ChunkingMethod, extractionOptions: ExtractionOptions, customSize?: number) => void;
+  onProcess: (text: string, extractionOptions: ExtractionOptions) => void;
   processingState: ProcessingState;
 }
 
@@ -21,11 +17,7 @@ const ALL_ENTITY_TYPES: EntityType[] = ['location', 'happening', 'character', 'm
 export function InputPanel({ onProcess, processingState }: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
-  const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('sentence');
-  const [customChunkSize, setCustomChunkSize] = useState(500);
-  const [selectedEntityTypes, setSelectedEntityTypes] = useState<EntityType[]>(['location', 'happening', 'character', 'monster']);
-  const [clusterRange, setClusterRange] = useState({ min: 3, max: 15 });
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [selectedEntityTypes, setSelectedEntityTypes] = useState<EntityType[]>(['location', 'happening', 'character', 'monster', 'item']);
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
 
@@ -101,15 +93,9 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
     
     const extractionOptions: ExtractionOptions = {
       entityTypes: selectedEntityTypes,
-      clusterRange,
     };
     
-    onProcess(
-      inputText, 
-      chunkingMethod, 
-      extractionOptions,
-      chunkingMethod === 'custom' ? customChunkSize : undefined
-    );
+    onProcess(inputText, extractionOptions);
   };
 
   const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && selectedEntityTypes.length > 0;
@@ -214,104 +200,6 @@ export function InputPanel({ onProcess, processingState }: InputPanelProps) {
           ))}
         </div>
       </div>
-
-      {/* Advanced Options */}
-      <Collapsible open={isAdvancedOpen} onOpenChange={setIsAdvancedOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between text-sm">
-            <span className="text-muted-foreground">Advanced Options</span>
-            <ChevronDown className={cn(
-              "w-4 h-4 text-muted-foreground transition-transform",
-              isAdvancedOpen && "rotate-180"
-            )} />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-2 space-y-3">
-          <RadioGroup
-            value={chunkingMethod}
-            onValueChange={(v) => setChunkingMethod(v as ChunkingMethod)}
-            className="space-y-2"
-          >
-            <div className="flex items-center space-x-3">
-              <RadioGroupItem value="sentence" id="sentence" />
-              <Label htmlFor="sentence" className="text-sm cursor-pointer">
-                Sentences
-              </Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <RadioGroupItem value="line" id="line" />
-              <Label htmlFor="line" className="text-sm cursor-pointer">
-                Lines
-              </Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <RadioGroupItem value="paragraph" id="paragraph" />
-              <Label htmlFor="paragraph" className="text-sm cursor-pointer">
-                Paragraphs
-              </Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <RadioGroupItem value="custom" id="custom" />
-              <Label htmlFor="custom" className="text-sm cursor-pointer">
-                Custom size
-              </Label>
-            </div>
-          </RadioGroup>
-          
-          {chunkingMethod === 'custom' && (
-            <div className="flex items-center gap-2 pl-6">
-              <Input
-                type="number"
-                value={customChunkSize}
-                onChange={(e) => setCustomChunkSize(parseInt(e.target.value) || 500)}
-                className="w-24 h-8 text-sm"
-                min={100}
-                max={2000}
-              />
-              <span className="text-xs text-muted-foreground">characters</span>
-            </div>
-          )}
-
-          {/* Cluster Range */}
-          <div className="pt-3 border-t border-border space-y-3">
-            <Label className="text-sm text-muted-foreground">Entities per type range</Label>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span>Min: {clusterRange.min}</span>
-                <span>Max: {clusterRange.max}</span>
-              </div>
-              <div className="flex gap-4">
-                <div className="flex-1 space-y-1">
-                  <Slider
-                    value={[clusterRange.min]}
-                    onValueChange={([v]) => setClusterRange(prev => ({ 
-                      ...prev, 
-                      min: Math.min(v, prev.max - 1) 
-                    }))}
-                    min={1}
-                    max={10}
-                    step={1}
-                    className="w-full"
-                  />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Slider
-                    value={[clusterRange.max]}
-                    onValueChange={([v]) => setClusterRange(prev => ({ 
-                      ...prev, 
-                      max: Math.max(v, prev.min + 1) 
-                    }))}
-                    min={2}
-                    max={30}
-                    step={1}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
 
       {/* Generate Button */}
       <Button

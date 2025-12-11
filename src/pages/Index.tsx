@@ -1,31 +1,31 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Map, ChevronLeft, ChevronRight, Settings, Pencil } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Map, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
-import { GraphVisualization } from '@/components/GraphVisualization';
-import { DetailsPanel } from '@/components/DetailsPanel';
-import { EditPanel } from '@/components/EditPanel';
-import { ControlsPanel } from '@/components/ControlsPanel';
+import { EntityList } from '@/components/EntityList';
+import { EntityEditor } from '@/components/EntityEditor';
+import { QuestionsPanel } from '@/components/QuestionsPanel';
+import { CampaignGraph } from '@/components/CampaignGraph';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   CampaignData, 
-  GraphNode, 
+  CampaignEntity, 
   ProcessingState, 
-  ChunkingMethod,
   ExtractionOptions,
-  ENTITY_TYPE_INFO 
+  EntityType,
+  createEmptyEntity,
 } from '@/types/mindmap';
-import { createChunks, getClusterColor, generateId } from '@/lib/text-processing';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
 export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [activeRightTab, setActiveRightTab] = useState<'details' | 'edit' | 'controls'>('controls');
+  const [activeRightTab, setActiveRightTab] = useState<'edit' | 'questions'>('edit');
+  const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph');
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
   
   const [processingState, setProcessingState] = useState<ProcessingState>({
     status: 'idle',
@@ -33,35 +33,18 @@ export default function Index() {
     message: '',
   });
 
-  const graphRef = useRef<HTMLDivElement>(null);
-
   const handleProcess = useCallback(async (
     text: string, 
-    method: ChunkingMethod, 
-    extractionOptions: ExtractionOptions,
-    customSize?: number
+    extractionOptions: ExtractionOptions
   ) => {
     const startTime = Date.now();
     
     try {
-      // Step 1: Chunking
+      // Step 1: Extract entities
       setProcessingState({
-        status: 'chunking',
-        progress: 10,
-        message: 'Splitting text into chunks...',
-      });
-
-      const chunks = createChunks(text, method, customSize);
-      
-      if (chunks.length < 3) {
-        throw new Error('Not enough meaningful content to extract. Please provide more text.');
-      }
-
-      // Step 2: Extract entities
-      setProcessingState({
-        status: 'embedding',
-        progress: 30,
-        message: 'Extracting campaign entities...',
+        status: 'extracting',
+        progress: 20,
+        message: 'Finding entities in text...',
       });
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-mindmap`, {
@@ -71,7 +54,7 @@ export default function Index() {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ 
-          chunks: chunks.map(c => c.text),
+          text,
           extractionOptions,
         }),
       });
@@ -81,41 +64,18 @@ export default function Index() {
         throw new Error(error.error || 'Failed to extract campaign data');
       }
 
-      const result = await response.json();
-
       setProcessingState({
-        status: 'generating',
-        progress: 80,
-        message: 'Building campaign graph...',
+        status: 'filling',
+        progress: 60,
+        message: 'Filling entity details...',
       });
 
-      // Build the graph from entities
-      const nodes: GraphNode[] = result.entities.map((entity: any, idx: number) => ({
-        id: `node-${entity.type}-${idx}`,
-        clusterId: idx,
-        type: entity.type,
-        label: entity.label,
-        summary: entity.summary,
-        chunkCount: entity.chunkIndices.length,
-        chunks: entity.chunkIndices.map((i: number) => chunks[i]),
-        color: ENTITY_TYPE_INFO[entity.type as keyof typeof ENTITY_TYPE_INFO]?.color || '#888',
-      }));
-
-      // Create edges based on AI relationships
-      const edges = result.relationships.map((rel: any, idx: number) => ({
-        id: `edge-${idx}`,
-        source: `node-${rel.sourceType}-${rel.sourceIndex}`,
-        target: `node-${rel.targetType}-${rel.targetIndex}`,
-        relationship: rel.description,
-      }));
+      const result = await response.json();
 
       const processingTime = Date.now() - startTime;
 
       setCampaignData({
-        nodes,
-        edges,
-        clusters: result.entities,
-        totalChunks: chunks.length,
+        entities: result.entities,
         processingTime,
       });
 
@@ -127,7 +87,7 @@ export default function Index() {
 
       toast({
         title: "Campaign extracted",
-        description: `Found ${nodes.length} entities with ${edges.length} relationships`,
+        description: `Found ${result.entities.length} entities`,
       });
 
     } catch (error) {
@@ -141,24 +101,84 @@ export default function Index() {
     }
   }, []);
 
-  const handleNodeSelect = useCallback((node: GraphNode | null) => {
-    setSelectedNode(node);
-    if (node) {
-      setActiveRightTab('details');
+  const handleEntitySelect = useCallback((entity: CampaignEntity | null) => {
+    setSelectedEntity(entity);
+    if (entity) {
+      setActiveRightTab('edit');
       if (!rightPanelOpen) setRightPanelOpen(true);
     }
   }, [rightPanelOpen]);
 
-  const handleDataUpdate = useCallback((updatedData: CampaignData, affectedNodeIds: string[]) => {
-    setCampaignData(updatedData);
-    // Update selected node if it was affected
-    if (selectedNode && affectedNodeIds.includes(selectedNode.id)) {
-      const updatedNode = updatedData.nodes.find(n => n.id === selectedNode.id);
-      if (updatedNode) {
-        setSelectedNode(updatedNode);
+  const handleEntitySave = useCallback((updatedEntity: CampaignEntity) => {
+    setCampaignData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        entities: prev.entities.map(e => 
+          e.id === updatedEntity.id ? updatedEntity : e
+        ),
+      };
+    });
+    setSelectedEntity(updatedEntity);
+    toast({
+      title: "Entity saved",
+      description: `${updatedEntity.name} has been updated`,
+    });
+  }, []);
+
+  const handleEntityDelete = useCallback((entityId: string) => {
+    setCampaignData(prev => {
+      if (!prev) return prev;
+      
+      // Remove entity and clean up relations
+      const newEntities = prev.entities
+        .filter(e => e.id !== entityId)
+        .map(entity => {
+          const cleaned = { ...entity };
+          const relationFields = [
+            'associatedLocations', 'associatedCharacters', 'associatedMonsters',
+            'associatedHappenings', 'associatedItems'
+          ];
+          relationFields.forEach(field => {
+            if ((cleaned as any)[field]) {
+              (cleaned as any)[field] = (cleaned as any)[field].filter((id: string) => id !== entityId);
+            }
+          });
+          return cleaned as CampaignEntity;
+        });
+      
+      return { ...prev, entities: newEntities };
+    });
+    setSelectedEntity(null);
+    toast({
+      title: "Entity deleted",
+    });
+  }, []);
+
+  const handleAddEntity = useCallback((type: EntityType) => {
+    const id = `${type}-${Date.now()}`;
+    const newEntity = createEmptyEntity(type, id, `New ${type}`);
+    
+    setCampaignData(prev => {
+      if (!prev) {
+        return { entities: [newEntity], processingTime: 0 };
       }
+      return { ...prev, entities: [...prev.entities, newEntity] };
+    });
+    
+    setSelectedEntity(newEntity);
+    setActiveRightTab('edit');
+    if (!rightPanelOpen) setRightPanelOpen(true);
+  }, [rightPanelOpen]);
+
+  const handleSelectField = useCallback((entityId: string, fieldKey: string) => {
+    const entity = campaignData?.entities.find(e => e.id === entityId);
+    if (entity) {
+      setSelectedEntity(entity);
+      setActiveRightTab('edit');
+      if (!rightPanelOpen) setRightPanelOpen(true);
     }
-  }, [selectedNode]);
+  }, [campaignData, rightPanelOpen]);
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -172,9 +192,24 @@ export default function Index() {
             Campaign Editor
           </h1>
         </div>
-        <p className="text-sm text-muted-foreground hidden sm:block">
-          Extract &amp; visualize D&amp;D campaign elements
-        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('graph')}
+          >
+            <LayoutGrid className="w-4 h-4 mr-1" />
+            Graph
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="w-4 h-4 mr-1" />
+            List
+          </Button>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -203,13 +238,22 @@ export default function Index() {
           )}
         </Button>
 
-        {/* Graph Area */}
-        <main className="flex-1 min-w-0 relative" ref={graphRef}>
-          <GraphVisualization 
-            data={campaignData}
-            onNodeSelect={handleNodeSelect}
-            selectedNodeId={selectedNode?.id || null}
-          />
+        {/* Main Area */}
+        <main className="flex-1 min-w-0 relative">
+          {viewMode === 'graph' ? (
+            <CampaignGraph 
+              data={campaignData}
+              onEntitySelect={handleEntitySelect}
+              selectedEntityId={selectedEntity?.id || null}
+            />
+          ) : (
+            <EntityList
+              data={campaignData}
+              selectedEntityId={selectedEntity?.id || null}
+              onSelectEntity={handleEntitySelect}
+              onAddEntity={handleAddEntity}
+            />
+          )}
         </main>
 
         {/* Right Panel Toggle */}
@@ -226,65 +270,51 @@ export default function Index() {
           )}
         </Button>
 
-        {/* Right Panel - Details & Controls */}
+        {/* Right Panel - Edit & Questions */}
         <aside 
           className={cn(
             "border-l border-border bg-card transition-all duration-300 shrink-0 flex flex-col",
-            rightPanelOpen ? "w-80" : "w-0"
+            rightPanelOpen ? "w-96" : "w-0"
           )}
         >
           {rightPanelOpen && (
-            <>
-              <Tabs 
-                value={activeRightTab} 
-                onValueChange={(v) => setActiveRightTab(v as 'details' | 'edit' | 'controls')}
-                className="flex flex-col h-full"
-              >
-                <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent p-0 h-auto shrink-0">
-                  <TabsTrigger 
-                    value="details"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
-                  >
-                    Details
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="edit"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
-                  >
-                    <Pencil className="w-4 h-4 mr-1" />
-                    Edit
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="controls"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
-                  >
-                    <Settings className="w-4 h-4 mr-1" />
-                    Controls
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="details" className="flex-1 m-0 min-h-0">
-                  <DetailsPanel 
-                    selectedNode={selectedNode}
-                    data={campaignData}
-                    onClose={() => setSelectedNode(null)}
-                  />
-                </TabsContent>
-                <TabsContent value="edit" className="flex-1 m-0 min-h-0">
-                  <EditPanel 
-                    selectedNode={selectedNode}
-                    data={campaignData}
-                    onClose={() => setSelectedNode(null)}
-                    onUpdate={handleDataUpdate}
-                  />
-                </TabsContent>
-                <TabsContent value="controls" className="flex-1 m-0 min-h-0 overflow-y-auto scrollbar-thin">
-                  <ControlsPanel 
-                    data={campaignData}
-                    graphRef={graphRef}
-                  />
-                </TabsContent>
-              </Tabs>
-            </>
+            <Tabs 
+              value={activeRightTab} 
+              onValueChange={(v) => setActiveRightTab(v as 'edit' | 'questions')}
+              className="flex flex-col h-full"
+            >
+              <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent p-0 h-auto shrink-0">
+                <TabsTrigger 
+                  value="edit"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
+                >
+                  <Pencil className="w-4 h-4 mr-1" />
+                  Edit
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="questions"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
+                >
+                  <HelpCircle className="w-4 h-4 mr-1" />
+                  Questions
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="edit" className="flex-1 m-0 min-h-0">
+                <EntityEditor 
+                  entity={selectedEntity}
+                  data={campaignData}
+                  onClose={() => setSelectedEntity(null)}
+                  onSave={handleEntitySave}
+                  onDelete={handleEntityDelete}
+                />
+              </TabsContent>
+              <TabsContent value="questions" className="flex-1 m-0 min-h-0">
+                <QuestionsPanel 
+                  data={campaignData}
+                  onSelectField={handleSelectField}
+                />
+              </TabsContent>
+            </Tabs>
           )}
         </aside>
       </div>

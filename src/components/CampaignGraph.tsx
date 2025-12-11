@@ -12,19 +12,17 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { CampaignData, GraphNode as CampaignNode, ENTITY_TYPE_INFO, EntityType } from '@/types/mindmap';
+import { CampaignData, CampaignEntity, EntityType, ENTITY_TYPE_INFO } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 
-interface GraphVisualizationProps {
+interface CampaignGraphProps {
   data: CampaignData | null;
-  onNodeSelect: (node: CampaignNode | null) => void;
-  selectedNodeId: string | null;
+  onEntitySelect: (entity: CampaignEntity | null) => void;
+  selectedEntityId: string | null;
 }
 
 // Custom node component
-function EntityNode({ data, selected }: NodeProps<CampaignNode & { isSelected: boolean }>) {
-  const nodeWidth = Math.min(Math.max(data.chunkCount * 15 + 80, 100), 200);
-  const nodeHeight = 50;
+function EntityNode({ data }: NodeProps<CampaignEntity & { isSelected: boolean }>) {
   const typeInfo = ENTITY_TYPE_INFO[data.type];
   
   return (
@@ -33,12 +31,10 @@ function EntityNode({ data, selected }: NodeProps<CampaignNode & { isSelected: b
       <div
         className={cn(
           "rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer px-3 py-2",
-          "border-2 shadow-lg hover:scale-105",
+          "border-2 shadow-lg hover:scale-105 min-w-[100px] max-w-[200px]",
           data.isSelected && "ring-2 ring-foreground ring-offset-2 ring-offset-background scale-105"
         )}
         style={{
-          width: nodeWidth,
-          minHeight: nodeHeight,
           backgroundColor: typeInfo.color,
           borderColor: data.isSelected ? 'white' : 'transparent',
           boxShadow: `0 4px ${data.isSelected ? 20 : 10}px ${typeInfo.color}40`,
@@ -56,7 +52,7 @@ function EntityNode({ data, selected }: NodeProps<CampaignNode & { isSelected: b
             WebkitBoxOrient: 'vertical',
           }}
         >
-          {data.label}
+          {data.name}
         </span>
       </div>
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
@@ -68,115 +64,128 @@ const nodeTypes = {
   entity: EntityNode,
 };
 
-// Row heights and spacing
-const ROW_HEIGHT = 180;
-const ROW_PADDING = 100;
-const NODE_SPACING = 30;
+// Row positions
+const ROW_CONFIG: Record<EntityType, number> = {
+  location: 0,
+  happening: 1,
+  character: 2,
+  monster: 2,
+  item: 3,
+};
 
-export function GraphVisualization({ 
+const ROW_HEIGHT = 150;
+const ROW_PADDING = 80;
+const NODE_SPACING = 40;
+
+export function CampaignGraph({ 
   data, 
-  onNodeSelect,
-  selectedNodeId 
-}: GraphVisualizationProps) {
+  onEntitySelect,
+  selectedEntityId 
+}: CampaignGraphProps) {
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!data) return { initialNodes: [], initialEdges: [] };
 
-    // Group nodes by row (based on entity type)
-    const rowGroups: Record<number, CampaignNode[]> = { 0: [], 1: [], 2: [] };
+    // Group entities by row
+    const rowGroups: Record<number, CampaignEntity[]> = { 0: [], 1: [], 2: [], 3: [] };
     
-    data.nodes.forEach(node => {
-      const row = ENTITY_TYPE_INFO[node.type].row;
-      rowGroups[row].push(node);
+    data.entities.forEach(entity => {
+      const row = ROW_CONFIG[entity.type];
+      rowGroups[row].push(entity);
     });
 
-    // Position nodes in rows
+    // Position nodes
     const nodes: Node[] = [];
     
-    Object.entries(rowGroups).forEach(([rowStr, rowNodes]) => {
+    Object.entries(rowGroups).forEach(([rowStr, rowEntities]) => {
       const row = parseInt(rowStr);
       const y = ROW_PADDING + row * ROW_HEIGHT;
       
-      // Calculate total width needed
-      const totalWidth = rowNodes.reduce((sum, node) => {
-        const nodeWidth = Math.min(Math.max(node.chunkCount * 15 + 80, 100), 200);
-        return sum + nodeWidth + NODE_SPACING;
-      }, -NODE_SPACING);
-      
-      // Start position (centered)
+      const totalWidth = rowEntities.length * 150 + (rowEntities.length - 1) * NODE_SPACING;
       let x = -totalWidth / 2;
       
-      rowNodes.forEach(node => {
-        const nodeWidth = Math.min(Math.max(node.chunkCount * 15 + 80, 100), 200);
-        
+      rowEntities.forEach(entity => {
         nodes.push({
-          id: node.id,
+          id: entity.id,
           type: 'entity',
           position: { x, y },
           data: {
-            ...node,
-            isSelected: node.id === selectedNodeId,
+            ...entity,
+            isSelected: entity.id === selectedEntityId,
           },
         });
-        
-        x += nodeWidth + NODE_SPACING;
+        x += 150 + NODE_SPACING;
       });
     });
 
-    // Create edges with relationship labels
-    const edges: Edge[] = data.edges.map(edge => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      label: edge.relationship,
-      labelStyle: { fill: 'hsl(var(--muted-foreground))', fontSize: 10 },
-      labelBgStyle: { fill: 'hsl(var(--background))', fillOpacity: 0.8 },
-      style: {
-        stroke: 'hsl(var(--muted-foreground))',
-        strokeWidth: 1.5,
-      },
-      type: 'smoothstep',
-    }));
+    // Create edges from relations
+    const edges: Edge[] = [];
+    const edgeSet = new Set<string>();
+
+    data.entities.forEach(entity => {
+      const relationFields = [
+        'associatedLocations', 'associatedCharacters', 'associatedMonsters',
+        'associatedHappenings', 'associatedItems'
+      ];
+
+      relationFields.forEach(fieldKey => {
+        const relations = (entity as any)[fieldKey] as string[] | undefined;
+        if (!relations) return;
+
+        relations.forEach(targetId => {
+          const edgeKey = [entity.id, targetId].sort().join('-');
+          if (edgeSet.has(edgeKey)) return;
+          edgeSet.add(edgeKey);
+
+          edges.push({
+            id: edgeKey,
+            source: entity.id,
+            target: targetId,
+            style: {
+              stroke: 'hsl(var(--muted-foreground))',
+              strokeWidth: 1.5,
+            },
+            type: 'smoothstep',
+          });
+        });
+      });
+    });
 
     return { initialNodes: nodes, initialEdges: edges };
-  }, [data, selectedNodeId]);
+  }, [data, selectedEntityId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Update nodes when selection changes
   React.useEffect(() => {
     setNodes(nodes => nodes.map(node => ({
       ...node,
       data: {
         ...node.data,
-        isSelected: node.id === selectedNodeId,
+        isSelected: node.id === selectedEntityId,
       },
     })));
-  }, [selectedNodeId, setNodes]);
+  }, [selectedEntityId, setNodes]);
 
-  // Update nodes and edges when data changes
   React.useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    const campaignNode = data?.nodes.find(n => n.id === node.id);
-    onNodeSelect(campaignNode || null);
-  }, [data, onNodeSelect]);
+    const entity = data?.entities.find(e => e.id === node.id);
+    onEntitySelect(entity || null);
+  }, [data, onEntitySelect]);
 
   const handlePaneClick = useCallback(() => {
-    onNodeSelect(null);
-  }, [onNodeSelect]);
+    onEntitySelect(null);
+  }, [onEntitySelect]);
 
   if (!data) {
     return (
       <div className="h-full flex items-center justify-center text-muted-foreground">
         <div className="text-center space-y-4">
           <div className="w-24 h-24 mx-auto rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-            <svg className="w-10 h-10 text-muted-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
+            <span className="text-4xl">🗺️</span>
           </div>
           <div>
             <p className="font-mono text-sm">No campaign extracted</p>
@@ -191,20 +200,25 @@ export function GraphVisualization({
     <div className="h-full relative">
       {/* Row Labels */}
       <div className="absolute left-4 top-0 z-10 flex flex-col pointer-events-none">
-        <div className="h-[100px]" /> {/* Padding */}
-        <div className="h-[180px] flex items-center">
+        <div className="h-[80px]" />
+        <div className="h-[150px] flex items-center">
           <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded">
             Locations
           </span>
         </div>
-        <div className="h-[180px] flex items-center">
+        <div className="h-[150px] flex items-center">
           <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded">
             Happenings
           </span>
         </div>
-        <div className="h-[180px] flex items-center">
+        <div className="h-[150px] flex items-center">
           <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded">
-            Characters / Monsters / Items
+            Characters / Monsters
+          </span>
+        </div>
+        <div className="h-[150px] flex items-center">
+          <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded">
+            Items
           </span>
         </div>
       </div>
