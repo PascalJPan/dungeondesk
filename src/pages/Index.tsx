@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Map, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { Map, ChevronLeft, ChevronRight, Settings, Pencil } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { GraphVisualization } from '@/components/GraphVisualization';
 import { DetailsPanel } from '@/components/DetailsPanel';
+import { EditPanel } from '@/components/EditPanel';
 import { ControlsPanel } from '@/components/ControlsPanel';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,7 +22,7 @@ import { toast } from '@/hooks/use-toast';
 export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [activeRightTab, setActiveRightTab] = useState<'details' | 'controls'>('controls');
+  const [activeRightTab, setActiveRightTab] = useState<'details' | 'edit' | 'controls'>('controls');
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
@@ -148,6 +149,17 @@ export default function Index() {
     }
   }, [rightPanelOpen]);
 
+  const handleDataUpdate = useCallback((updatedData: CampaignData, affectedNodeIds: string[]) => {
+    setCampaignData(updatedData);
+    // Update selected node if it was affected
+    if (selectedNode && affectedNodeIds.includes(selectedNode.id)) {
+      const updatedNode = updatedData.nodes.find(n => n.id === selectedNode.id);
+      if (updatedNode) {
+        setSelectedNode(updatedNode);
+      }
+    }
+  }, [selectedNode]);
+
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Header */}
@@ -225,7 +237,7 @@ export default function Index() {
             <>
               <Tabs 
                 value={activeRightTab} 
-                onValueChange={(v) => setActiveRightTab(v as 'details' | 'controls')}
+                onValueChange={(v) => setActiveRightTab(v as 'details' | 'edit' | 'controls')}
                 className="flex flex-col h-full"
               >
                 <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent p-0 h-auto shrink-0">
@@ -234,6 +246,13 @@ export default function Index() {
                     className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
                   >
                     Details
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="edit"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
+                  >
+                    <Pencil className="w-4 h-4 mr-1" />
+                    Edit
                   </TabsTrigger>
                   <TabsTrigger 
                     value="controls"
@@ -248,6 +267,14 @@ export default function Index() {
                     selectedNode={selectedNode}
                     data={campaignData}
                     onClose={() => setSelectedNode(null)}
+                  />
+                </TabsContent>
+                <TabsContent value="edit" className="flex-1 m-0 min-h-0">
+                  <EditPanel 
+                    selectedNode={selectedNode}
+                    data={campaignData}
+                    onClose={() => setSelectedNode(null)}
+                    onUpdate={handleDataUpdate}
                   />
                 </TabsContent>
                 <TabsContent value="controls" className="flex-1 m-0 min-h-0 overflow-y-auto scrollbar-thin">
