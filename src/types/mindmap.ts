@@ -1,90 +1,204 @@
 export type EntityType = 'location' | 'happening' | 'character' | 'monster' | 'item';
 
-export interface TextChunk {
+// Base entity fields
+export interface BaseEntity {
   id: string;
-  text: string;
-  index: number;
-  embedding?: number[];
-  clusterIds?: number[]; // Can belong to multiple clusters
-}
-
-export interface Cluster {
-  id: number;
   type: EntityType;
+  name: string;
+  shortDescription: string; // 3 sentence description
+  longDescription: string; // Detailed description
+}
+
+// Location entity
+export interface LocationEntity extends BaseEntity {
+  type: 'location';
+  background: string;
+  associatedCharacters: string[]; // Entity IDs
+  associatedMonsters: string[];
+  associatedHappenings: string[];
+  associatedItems: string[];
+}
+
+// Happening entity
+export interface HappeningEntity extends BaseEntity {
+  type: 'happening';
+  potentialStarts: string;
+  potentialOutcomes: string;
+  associatedLocations: string[];
+  associatedCharacters: string[];
+  associatedMonsters: string[];
+  associatedItems: string[];
+}
+
+// Character entity
+export interface CharacterEntity extends BaseEntity {
+  type: 'character';
+  background: string;
+  motivationsGoals: string;
+  personality: string;
+  associatedLocations: string[];
+  associatedHappenings: string[];
+  associatedItems: string[];
+}
+
+// Monster entity
+export interface MonsterEntity extends BaseEntity {
+  type: 'monster';
+  abilities: string;
+  behavior: string;
+  associatedLocations: string[];
+  associatedHappenings: string[];
+  associatedItems: string[];
+}
+
+// Item entity
+export interface ItemEntity extends BaseEntity {
+  type: 'item';
+  properties: string;
+  history: string;
+  associatedLocations: string[];
+  associatedCharacters: string[];
+  associatedHappenings: string[];
+}
+
+// Union type for all entities
+export type CampaignEntity = LocationEntity | HappeningEntity | CharacterEntity | MonsterEntity | ItemEntity;
+
+// Entity field definitions for UI and extraction
+export interface EntityFieldDef {
+  key: string;
   label: string;
-  summary: string;
-  chunks: TextChunk[];
-  centroid?: number[];
-  color: string;
+  type: 'text' | 'textarea' | 'relations';
+  required: boolean;
+  relationType?: EntityType[];
 }
 
-export interface GraphNode {
-  id: string;
-  clusterId: number;
-  type: EntityType;
-  label: string;
-  summary: string;
-  chunkCount: number;
-  chunks: TextChunk[];
-  color: string;
-  x?: number;
-  y?: number;
-}
+export const ENTITY_FIELDS: Record<EntityType, EntityFieldDef[]> = {
+  location: [
+    { key: 'shortDescription', label: 'Short Description', type: 'textarea', required: true },
+    { key: 'longDescription', label: 'In-Depth Description', type: 'textarea', required: false },
+    { key: 'background', label: 'Background', type: 'textarea', required: false },
+    { key: 'associatedCharacters', label: 'Associated Characters', type: 'relations', required: false, relationType: ['character'] },
+    { key: 'associatedMonsters', label: 'Associated Monsters', type: 'relations', required: false, relationType: ['monster'] },
+    { key: 'associatedHappenings', label: 'Associated Happenings', type: 'relations', required: false, relationType: ['happening'] },
+    { key: 'associatedItems', label: 'Associated Items', type: 'relations', required: false, relationType: ['item'] },
+  ],
+  happening: [
+    { key: 'shortDescription', label: 'Short Description', type: 'textarea', required: true },
+    { key: 'longDescription', label: 'Detailed Description', type: 'textarea', required: false },
+    { key: 'potentialStarts', label: 'Potential Starts', type: 'textarea', required: false },
+    { key: 'potentialOutcomes', label: 'Potential Outcomes', type: 'textarea', required: false },
+    { key: 'associatedLocations', label: 'Associated Locations', type: 'relations', required: false, relationType: ['location'] },
+    { key: 'associatedCharacters', label: 'Associated Characters', type: 'relations', required: false, relationType: ['character'] },
+    { key: 'associatedMonsters', label: 'Associated Monsters', type: 'relations', required: false, relationType: ['monster'] },
+    { key: 'associatedItems', label: 'Associated Items', type: 'relations', required: false, relationType: ['item'] },
+  ],
+  character: [
+    { key: 'shortDescription', label: 'Short Description', type: 'textarea', required: true },
+    { key: 'longDescription', label: 'Detailed Description', type: 'textarea', required: false },
+    { key: 'background', label: 'Background', type: 'textarea', required: false },
+    { key: 'motivationsGoals', label: 'Motivations & Goals', type: 'textarea', required: false },
+    { key: 'personality', label: 'Personality', type: 'textarea', required: false },
+    { key: 'associatedLocations', label: 'Associated Locations', type: 'relations', required: false, relationType: ['location'] },
+    { key: 'associatedHappenings', label: 'Associated Happenings', type: 'relations', required: false, relationType: ['happening'] },
+    { key: 'associatedItems', label: 'Associated Items', type: 'relations', required: false, relationType: ['item'] },
+  ],
+  monster: [
+    { key: 'shortDescription', label: 'Short Description', type: 'textarea', required: true },
+    { key: 'longDescription', label: 'Detailed Description', type: 'textarea', required: false },
+    { key: 'abilities', label: 'Abilities', type: 'textarea', required: false },
+    { key: 'behavior', label: 'Behavior', type: 'textarea', required: false },
+    { key: 'associatedLocations', label: 'Associated Locations', type: 'relations', required: false, relationType: ['location'] },
+    { key: 'associatedHappenings', label: 'Associated Happenings', type: 'relations', required: false, relationType: ['happening'] },
+    { key: 'associatedItems', label: 'Associated Items', type: 'relations', required: false, relationType: ['item'] },
+  ],
+  item: [
+    { key: 'shortDescription', label: 'Short Description', type: 'textarea', required: true },
+    { key: 'longDescription', label: 'Detailed Description', type: 'textarea', required: false },
+    { key: 'properties', label: 'Properties', type: 'textarea', required: false },
+    { key: 'history', label: 'History', type: 'textarea', required: false },
+    { key: 'associatedLocations', label: 'Associated Locations', type: 'relations', required: false, relationType: ['location'] },
+    { key: 'associatedCharacters', label: 'Associated Characters', type: 'relations', required: false, relationType: ['character'] },
+    { key: 'associatedHappenings', label: 'Associated Happenings', type: 'relations', required: false, relationType: ['happening'] },
+  ],
+};
 
-export interface GraphEdge {
-  id: string;
-  source: string;
-  target: string;
-  relationship: string; // Description of the relationship
-}
+// Entity type display info
+export const ENTITY_TYPE_INFO: Record<EntityType, { label: string; color: string; icon: string }> = {
+  location: { label: 'Locations', color: '#10b981', icon: '📍' },
+  happening: { label: 'Happenings', color: '#f59e0b', icon: '⚡' },
+  character: { label: 'Characters', color: '#3b82f6', icon: '👤' },
+  monster: { label: 'Monsters', color: '#ef4444', icon: '👹' },
+  item: { label: 'Items', color: '#8b5cf6', icon: '🗡️' },
+};
 
+// Campaign data structure
 export interface CampaignData {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  clusters: Cluster[];
-  totalChunks: number;
+  entities: CampaignEntity[];
   processingTime: number;
 }
 
-// Legacy alias for compatibility
-export type MindMapData = CampaignData;
-
-export type ChunkingMethod = 'sentence' | 'paragraph' | 'line' | 'custom';
-
-export interface ClusterRange {
-  min: number;
-  max: number;
+// Empty field info for Questions panel
+export interface EmptyField {
+  entityId: string;
+  entityName: string;
+  entityType: EntityType;
+  fieldKey: string;
+  fieldLabel: string;
 }
 
+// Extraction options
 export interface ExtractionOptions {
   entityTypes: EntityType[];
-  clusterRange: ClusterRange;
 }
 
-export interface ProcessingOptions {
-  chunkingMethod: ChunkingMethod;
-  extractionOptions: ExtractionOptions;
-  customChunkSize?: number;
-  similarityThreshold: number;
-  maxClusters: number;
-}
-
+// Processing state
 export interface ProcessingState {
-  status: 'idle' | 'uploading' | 'extracting' | 'chunking' | 'embedding' | 'clustering' | 'generating' | 'complete' | 'error';
+  status: 'idle' | 'extracting' | 'filling' | 'complete' | 'error';
   progress: number;
   message: string;
   error?: string;
 }
 
-export interface ExportOptions {
-  format: 'png' | 'svg' | 'json' | 'markdown';
+// Helper to get empty fields from campaign data
+export function getEmptyFields(data: CampaignData): EmptyField[] {
+  const emptyFields: EmptyField[] = [];
+  
+  for (const entity of data.entities) {
+    const fields = ENTITY_FIELDS[entity.type];
+    for (const field of fields) {
+      if (field.type === 'relations') continue; // Skip relations for now
+      
+      const value = (entity as any)[field.key];
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        emptyFields.push({
+          entityId: entity.id,
+          entityName: entity.name,
+          entityType: entity.type,
+          fieldKey: field.key,
+          fieldLabel: field.label,
+        });
+      }
+    }
+  }
+  
+  return emptyFields;
 }
 
-// Entity type display info
-export const ENTITY_TYPE_INFO: Record<EntityType, { label: string; color: string; row: number }> = {
-  location: { label: 'Locations', color: '#10b981', row: 0 },
-  happening: { label: 'Happenings', color: '#f59e0b', row: 1 },
-  character: { label: 'Characters', color: '#3b82f6', row: 2 },
-  monster: { label: 'Monsters', color: '#ef4444', row: 2 },
-  item: { label: 'Items', color: '#8b5cf6', row: 2 },
-};
+// Helper to create empty entity
+export function createEmptyEntity(type: EntityType, id: string, name: string): CampaignEntity {
+  const base = { id, type, name, shortDescription: '', longDescription: '' };
+  
+  switch (type) {
+    case 'location':
+      return { ...base, type: 'location', background: '', associatedCharacters: [], associatedMonsters: [], associatedHappenings: [], associatedItems: [] };
+    case 'happening':
+      return { ...base, type: 'happening', potentialStarts: '', potentialOutcomes: '', associatedLocations: [], associatedCharacters: [], associatedMonsters: [], associatedItems: [] };
+    case 'character':
+      return { ...base, type: 'character', background: '', motivationsGoals: '', personality: '', associatedLocations: [], associatedHappenings: [], associatedItems: [] };
+    case 'monster':
+      return { ...base, type: 'monster', abilities: '', behavior: '', associatedLocations: [], associatedHappenings: [], associatedItems: [] };
+    case 'item':
+      return { ...base, type: 'item', properties: '', history: '', associatedLocations: [], associatedCharacters: [], associatedHappenings: [] };
+  }
+}
