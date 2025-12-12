@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { Plus } from 'lucide-react';
 import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
+import { Button } from '@/components/ui/button';
 
 interface NodeGraphProps {
   data: CampaignData | null;
   entityTypes: EntityTypeDef[];
   onEntitySelect: (entity: CampaignEntity | null) => void;
   selectedEntityId: string | null;
+  onAddEntity?: (typeDef: EntityTypeDef) => void;
 }
 
 interface NodePosition {
@@ -13,7 +16,7 @@ interface NodePosition {
   y: number;
 }
 
-export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId }: NodeGraphProps) {
+export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId, onAddEntity }: NodeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [positions, setPositions] = useState<Map<string, NodePosition>>(new Map());
@@ -253,9 +256,25 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
           <span className="text-3xl">🕸️</span>
         </div>
         <div className="mt-4 text-center">
-          <p className="font-display text-sm">No campaign data</p>
+          <p className="font-display text-sm">No entities yet</p>
           <p className="text-xs mt-1 font-serif">Add entities to see the node graph</p>
         </div>
+        {onAddEntity && (
+          <div className="flex flex-wrap justify-center gap-2 mt-4">
+            {entityTypes.map(typeDef => (
+              <Button
+                key={typeDef.key}
+                variant="outline"
+                size="sm"
+                className="font-serif"
+                onClick={() => onAddEntity(typeDef)}
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                {typeDef.label.endsWith('s') ? typeDef.label.slice(0, -1) : typeDef.label}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

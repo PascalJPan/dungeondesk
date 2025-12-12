@@ -453,6 +453,7 @@ export default function Index() {
               entityTypes={entityTypes}
               onEntitySelect={handleEntitySelect}
               selectedEntityId={selectedEntity?.id || null}
+              onAddEntity={handleAddEntity}
             />
           )}
         </main>
