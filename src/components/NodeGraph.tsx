@@ -1,7 +1,21 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import ReactFlow, {
+  Node,
+  Edge,
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  NodeProps,
+  Handle,
+  Position,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { Plus } from 'lucide-react';
 import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface NodeGraphProps {
   data: CampaignData | null;
@@ -11,75 +25,104 @@ interface NodeGraphProps {
   onAddEntity?: (typeDef: EntityTypeDef) => void;
 }
 
-interface NodePosition {
-  x: number;
-  y: number;
+// Custom circular node component
+function CircleNode({ data }: NodeProps<{ entity: CampaignEntity; color: string; isSelected: boolean; connectionCount: number }>) {
+  const size = 50 + Math.min(data.connectionCount * 5, 20);
+  
+  return (
+    <>
+      <Handle type="target" position={Position.Top} className="opacity-0" />
+      <Handle type="target" position={Position.Left} className="opacity-0" />
+      <div className="flex flex-col items-center">
+        <div
+          className={cn(
+            "rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer",
+            "border-2 shadow-lg hover:scale-110",
+            data.isSelected && "ring-2 ring-foreground ring-offset-2 ring-offset-background scale-110"
+          )}
+          style={{
+            width: size,
+            height: size,
+            backgroundColor: data.color,
+            borderColor: data.isSelected ? 'white' : 'transparent',
+            boxShadow: `0 4px ${data.isSelected ? 20 : 10}px ${data.color}40`,
+          }}
+        />
+        <span 
+          className="text-[10px] font-serif text-center mt-1 max-w-[80px] leading-tight"
+          style={{ 
+            color: 'hsl(var(--foreground))',
+            textShadow: '0 1px 2px hsl(var(--background))',
+          }}
+        >
+          {data.entity.name.length > 15 ? data.entity.name.slice(0, 13) + '...' : data.entity.name}
+        </span>
+      </div>
+      <Handle type="source" position={Position.Bottom} className="opacity-0" />
+      <Handle type="source" position={Position.Right} className="opacity-0" />
+    </>
+  );
 }
 
-export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId, onAddEntity }: NodeGraphProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [positions, setPositions] = useState<Map<string, NodePosition>>(new Map());
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+const nodeTypes = {
+  circle: CircleNode,
+};
 
-  const entities = data?.entities || [];
-
-  // Build connections map and count
-  const { connections, connectionCounts } = useMemo(() => {
+export function NodeGraph({ 
+  data, 
+  entityTypes,
+  onEntitySelect,
+  selectedEntityId,
+  onAddEntity,
+}: NodeGraphProps) {
+  
+  // Build connections and count
+  const { connectionMap, connectionCounts } = useMemo(() => {
+    if (!data) return { connectionMap: new Map(), connectionCounts: new Map() };
+    
     const map = new Map<string, Set<string>>();
     const counts = new Map<string, number>();
     
-    entities.forEach(entity => {
+    data.entities.forEach(entity => {
       counts.set(entity.id, 0);
     });
     
-    entities.forEach(entity => {
+    data.entities.forEach(entity => {
       if (!entity.associatedEntities) return;
       const assocs = entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean);
       assocs.forEach((assocName: string) => {
-        const linked = entities.find(e => e.name.toLowerCase() === assocName.toLowerCase());
+        const linked = data.entities.find(e => e.name.toLowerCase() === assocName.toLowerCase());
         if (linked) {
           if (!map.has(entity.id)) map.set(entity.id, new Set());
-          if (!map.has(linked.id)) map.set(linked.id, new Set());
           map.get(entity.id)!.add(linked.id);
-          map.get(linked.id)!.add(entity.id);
           counts.set(entity.id, (counts.get(entity.id) || 0) + 1);
-          counts.set(linked.id, (counts.get(linked.id) || 0) + 1);
         }
       });
     });
-    return { connections: map, connectionCounts: counts };
-  }, [entities]);
+    
+    return { connectionMap: map, connectionCounts: counts };
+  }, [data]);
 
-  // Sort entities by connection count (most connected first)
-  const sortedEntities = useMemo(() => {
-    return [...entities].sort((a, b) => 
+  const { initialNodes, initialEdges } = useMemo(() => {
+    if (!data || entityTypes.length === 0) return { initialNodes: [], initialEdges: [] };
+
+    // Sort entities by connection count (most connected first)
+    const sortedEntities = [...data.entities].sort((a, b) => 
       (connectionCounts.get(b.id) || 0) - (connectionCounts.get(a.id) || 0)
     );
-  }, [entities, connectionCounts]);
 
-  // Calculate static positions - connected entities closer together
-  useEffect(() => {
-    if (!containerRef.current || entities.length === 0) return;
-
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const newPositions = new Map<string, NodePosition>();
+    // Position nodes in concentric circles based on connections
+    const nodes: Node[] = [];
     const placed = new Set<string>();
-
-    // Place entities in layers based on connections
+    const positions = new Map<string, { x: number; y: number }>();
+    
+    // Create layers
     const layers: string[][] = [];
     const remaining = new Set(sortedEntities.map(e => e.id));
     
-    // First layer: most connected entities
+    // First layer: most connected entities (center)
     if (sortedEntities.length > 0) {
-      const firstLayerCount = Math.min(Math.ceil(sortedEntities.length / 4), 5);
+      const firstLayerCount = Math.min(Math.ceil(sortedEntities.length / 5), 4);
       layers.push(sortedEntities.slice(0, firstLayerCount).map(e => e.id));
       layers[0].forEach(id => remaining.delete(id));
     }
@@ -90,12 +133,8 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId,
       const prevLayer = layers[layers.length - 1] || [];
       
       remaining.forEach(id => {
-        const conns = connections.get(id);
-        if (!conns) {
-          layer.push(id);
-          return;
-        }
-        const hasConnectionToPrev = prevLayer.some(prevId => conns.has(prevId));
+        const conns = connectionMap.get(id);
+        const hasConnectionToPrev = prevLayer.some(prevId => conns?.has(prevId));
         if (hasConnectionToPrev || layers.length === 0) {
           layer.push(id);
         }
@@ -113,143 +152,96 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId,
     }
 
     // Position entities in concentric circles
+    const centerX = 0;
+    const centerY = 0;
+    
     layers.forEach((layer, layerIdx) => {
-      const radius = 80 + layerIdx * 120;
-      layer.forEach((entityId, i) => {
-        const angle = (2 * Math.PI * i) / layer.length - Math.PI / 2;
-        newPositions.set(entityId, {
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius,
+      const radius = layerIdx === 0 ? 0 : 150 + (layerIdx - 1) * 180;
+      
+      if (radius === 0 && layer.length === 1) {
+        positions.set(layer[0], { x: centerX, y: centerY });
+      } else {
+        layer.forEach((entityId, i) => {
+          const angle = (2 * Math.PI * i) / layer.length - Math.PI / 2;
+          const actualRadius = radius === 0 ? 80 : radius;
+          positions.set(entityId, {
+            x: centerX + Math.cos(angle) * actualRadius,
+            y: centerY + Math.sin(angle) * actualRadius,
+          });
         });
-        placed.add(entityId);
-      });
+      }
     });
 
-    setPositions(newPositions);
-  }, [entities.length, sortedEntities, connections]);
-
-  // Draw canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || !containerRef.current) return;
-
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
-    canvas.width = width;
-    canvas.height = height;
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.save();
-    ctx.translate(pan.x, pan.y);
-
-    // Draw connections
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1;
-    connections.forEach((connected, entityId) => {
-      const pos = positions.get(entityId);
-      if (!pos) return;
-      connected.forEach(otherId => {
-        const otherPos = positions.get(otherId);
-        if (!otherPos || otherId < entityId) return;
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
-        ctx.lineTo(otherPos.x, otherPos.y);
-        ctx.stroke();
-      });
-    });
-
-    // Draw nodes
-    entities.forEach(entity => {
+    // Create nodes
+    data.entities.forEach(entity => {
       const pos = positions.get(entity.id);
       if (!pos) return;
-
+      
       const color = getEntityColor(entityTypes, entity.type);
-      const isSelected = entity.id === selectedEntityId;
-      const connectionCount = connectionCounts.get(entity.id) || 0;
-      const radius = 16 + Math.min(connectionCount * 2, 10);
-
-      // Node circle
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = color;
-      ctx.fill();
-
-      if (isSelected) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
-
-      // Label
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '11px serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const name = entity.name.length > 12 ? entity.name.slice(0, 10) + '...' : entity.name;
-      ctx.fillText(name, pos.x, pos.y + radius + 12);
-    });
-
-    ctx.restore();
-  }, [positions, entities, entityTypes, selectedEntityId, connections, connectionCounts, pan]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    const x = e.clientX - rect.left - pan.x;
-    const y = e.clientY - rect.top - pan.y;
-
-    // Check if clicking on a node
-    for (const entity of entities) {
-      const pos = positions.get(entity.id);
-      if (!pos) continue;
-      const dx = x - pos.x;
-      const dy = y - pos.y;
-      const connectionCount = connectionCounts.get(entity.id) || 0;
-      const radius = 16 + Math.min(connectionCount * 2, 10);
-      if (dx * dx + dy * dy < radius * radius) {
-        setDragging(entity.id);
-        setOffset({ x: dx, y: dy });
-        onEntitySelect(entity);
-        return;
-      }
-    }
-
-    // Start panning
-    setIsPanning(true);
-    setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-  }, [entities, positions, connectionCounts, pan, onEntitySelect]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y,
+      nodes.push({
+        id: entity.id,
+        type: 'circle',
+        position: pos,
+        data: {
+          entity,
+          color,
+          isSelected: entity.id === selectedEntityId,
+          connectionCount: connectionCounts.get(entity.id) || 0,
+        },
       });
-      return;
-    }
-
-    if (!dragging) return;
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    const x = e.clientX - rect.left - pan.x - offset.x;
-    const y = e.clientY - rect.top - pan.y - offset.y;
-
-    setPositions(prev => {
-      const newPos = new Map(prev);
-      newPos.set(dragging, { x, y });
-      return newPos;
     });
-  }, [dragging, offset, pan, isPanning, panStart]);
 
-  const handleMouseUp = useCallback(() => {
-    setDragging(null);
-    setIsPanning(false);
-  }, []);
+    // Build edges
+    const edges: Edge[] = [];
+    const addedEdges = new Set<string>();
+    
+    connectionMap.forEach((connected, entityId) => {
+      connected.forEach(targetId => {
+        const edgeKey = [entityId, targetId].sort().join('-');
+        if (!addedEdges.has(edgeKey)) {
+          addedEdges.add(edgeKey);
+          edges.push({
+            id: edgeKey,
+            source: entityId,
+            target: targetId,
+            style: { stroke: 'hsl(var(--muted-foreground) / 0.3)', strokeWidth: 1.5 },
+            type: 'straight',
+          });
+        }
+      });
+    });
 
-  if (!data || entities.length === 0) {
+    return { initialNodes: nodes, initialEdges: edges };
+  }, [data, entityTypes, selectedEntityId, connectionCounts, connectionMap]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  React.useEffect(() => {
+    setNodes(nodes => nodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        isSelected: node.id === selectedEntityId,
+      },
+    })));
+  }, [selectedEntityId, setNodes]);
+
+  React.useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
+
+  const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    const entity = data?.entities.find(e => e.id === node.id);
+    onEntitySelect(entity || null);
+  }, [data, onEntitySelect]);
+
+  const handlePaneClick = useCallback(() => {
+    onEntitySelect(null);
+  }, [onEntitySelect]);
+
+  if (!data || data.entities.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
         <div className="w-20 h-20 mx-auto rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
@@ -280,15 +272,29 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId,
   }
 
   return (
-    <div 
-      ref={containerRef} 
-      className="h-full w-full relative cursor-grab active:cursor-grabbing"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
-      <canvas ref={canvasRef} className="absolute inset-0" />
+    <div className="h-full relative">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={handleNodeClick}
+        onPaneClick={handlePaneClick}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.4 }}
+        minZoom={0.1}
+        maxZoom={2}
+        attributionPosition="bottom-left"
+      >
+        <Background color="hsl(var(--border))" gap={30} size={1} />
+        <Controls className="!bg-card !border-border" />
+        <MiniMap 
+          nodeColor={(node) => node.data?.color || 'hsl(var(--primary))'}
+          maskColor="hsl(var(--background) / 0.8)"
+          className="!bg-card"
+        />
+      </ReactFlow>
     </div>
   );
 }
