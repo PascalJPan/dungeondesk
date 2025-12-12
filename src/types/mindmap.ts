@@ -21,6 +21,7 @@ export interface EntityTypeDef {
   label: string;
   color: string;
   attributes: AttributeDef[];
+  extractionPrompt?: string; // AI extraction guidance
 }
 
 // Attribute definition
@@ -35,21 +36,25 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
     key: 'location',
     label: 'Locations',
     color: '#5d8a66',
+    extractionPrompt: 'Only pick major locations which are more than just mentioned and have associated characters, items, or monsters.',
     attributes: [
       { key: 'shortDescription', label: 'Short Description' },
       { key: 'longDescription', label: 'In-Depth Description' },
       { key: 'background', label: 'Background' },
+      { key: 'associatedEntities', label: 'Associated Entities' },
     ],
   },
   {
     key: 'happening',
     label: 'Happenings',
     color: '#b08d57',
+    extractionPrompt: 'Only include happenings if you can also find a detailed description about them.',
     attributes: [
       { key: 'shortDescription', label: 'Short Description' },
       { key: 'longDescription', label: 'Detailed Description' },
       { key: 'potentialStarts', label: 'Potential Starts' },
       { key: 'potentialOutcomes', label: 'Potential Outcomes' },
+      { key: 'associatedEntities', label: 'Associated Entities' },
     ],
   },
   {
@@ -62,6 +67,7 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
       { key: 'background', label: 'Background' },
       { key: 'motivationsGoals', label: 'Motivations & Goals' },
       { key: 'personality', label: 'Personality' },
+      { key: 'associatedEntities', label: 'Associated Entities' },
     ],
   },
   {
@@ -73,6 +79,7 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
       { key: 'longDescription', label: 'Detailed Description' },
       { key: 'abilities', label: 'Abilities' },
       { key: 'behavior', label: 'Behavior' },
+      { key: 'associatedEntities', label: 'Associated Entities' },
     ],
   },
   {
@@ -84,6 +91,7 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
       { key: 'longDescription', label: 'Detailed Description' },
       { key: 'properties', label: 'Properties' },
       { key: 'history', label: 'History' },
+      { key: 'associatedEntities', label: 'Associated Entities' },
     ],
   },
 ];

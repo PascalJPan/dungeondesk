@@ -6,62 +6,62 @@
 
 @layer base {
   :root {
-    /* Ink/Parchment theme - warm sepia tones */
-    --background: 35 25% 8%;
-    --foreground: 40 20% 85%;
+    /* Ink/Paper theme - black and white with subtle warmth */
+    --background: 0 0% 6%;
+    --foreground: 0 0% 90%;
 
-    --card: 35 20% 11%;
-    --card-foreground: 40 20% 85%;
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 90%;
 
-    --popover: 35 20% 11%;
-    --popover-foreground: 40 20% 85%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 90%;
 
-    --primary: 35 50% 55%;
-    --primary-foreground: 35 25% 8%;
+    --primary: 0 0% 75%;
+    --primary-foreground: 0 0% 6%;
 
-    --secondary: 35 15% 15%;
-    --secondary-foreground: 40 15% 75%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 80%;
 
-    --muted: 35 12% 14%;
-    --muted-foreground: 35 10% 50%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 50%;
 
-    --accent: 25 45% 45%;
-    --accent-foreground: 40 20% 90%;
+    --accent: 0 0% 25%;
+    --accent-foreground: 0 0% 90%;
 
-    --destructive: 0 60% 45%;
-    --destructive-foreground: 40 40% 95%;
+    --destructive: 0 50% 45%;
+    --destructive-foreground: 0 0% 95%;
 
-    --border: 35 15% 18%;
-    --input: 35 15% 15%;
-    --ring: 35 50% 55%;
+    --border: 0 0% 18%;
+    --input: 0 0% 12%;
+    --ring: 0 0% 60%;
 
     --radius: 0.375rem;
 
     /* Custom tokens */
-    --surface-elevated: 35 18% 13%;
-    --surface-overlay: 35 20% 6%;
-    --glow-primary: 35 60% 50%;
-    --glow-secondary: 25 50% 45%;
+    --surface-elevated: 0 0% 11%;
+    --surface-overlay: 0 0% 4%;
+    --glow-primary: 0 0% 60%;
+    --glow-secondary: 0 0% 45%;
     
-    /* Entity colors - muted, ink-like */
-    --node-default: 35 40% 45%;
-    --node-cluster-1: 140 30% 35%;
-    --node-cluster-2: 35 45% 50%;
-    --node-cluster-3: 210 35% 45%;
-    --node-cluster-4: 0 40% 45%;
-    --node-cluster-5: 280 30% 45%;
-    --node-cluster-6: 180 25% 40%;
-    --edge-default: 35 15% 25%;
+    /* Entity colors - grayscale ink tones */
+    --node-default: 0 0% 45%;
+    --node-cluster-1: 0 0% 55%;
+    --node-cluster-2: 0 0% 40%;
+    --node-cluster-3: 0 0% 65%;
+    --node-cluster-4: 0 0% 35%;
+    --node-cluster-5: 0 0% 50%;
+    --node-cluster-6: 0 0% 60%;
+    --edge-default: 0 0% 30%;
     
     /* Sidebar */
-    --sidebar-background: 35 20% 9%;
-    --sidebar-foreground: 40 15% 80%;
-    --sidebar-primary: 35 50% 55%;
-    --sidebar-primary-foreground: 35 25% 8%;
-    --sidebar-accent: 35 15% 15%;
-    --sidebar-accent-foreground: 40 15% 80%;
-    --sidebar-border: 35 15% 16%;
-    --sidebar-ring: 35 50% 55%;
+    --sidebar-background: 0 0% 7%;
+    --sidebar-foreground: 0 0% 85%;
+    --sidebar-primary: 0 0% 75%;
+    --sidebar-primary-foreground: 0 0% 6%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 85%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-ring: 0 0% 60%;
 
     /* Typography */
     --font-serif: 'Crimson Pro', 'Georgia', serif;

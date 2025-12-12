@@ -73,8 +73,8 @@ export function CampaignGraph({
   onEntitySelect,
   selectedEntityId 
 }: CampaignGraphProps) {
-  const { initialNodes, initialEdges, rowLabels } = useMemo(() => {
-    if (!data || entityTypes.length === 0) return { initialNodes: [], initialEdges: [], rowLabels: [] };
+  const { initialNodes, initialEdges } = useMemo(() => {
+    if (!data || entityTypes.length === 0) return { initialNodes: [], initialEdges: [] };
 
     // Create row config based on entity types order
     const rowConfig: Record<string, number> = {};
@@ -121,13 +121,37 @@ export function CampaignGraph({
       });
     });
 
-    // No automatic edges for now - relations would need to be tracked differently
+    // Build edges from associatedEntities field
     const edges: Edge[] = [];
+    const entityMap = new Map(data.entities.map(e => [e.name.toLowerCase(), e.id]));
+    const addedEdges = new Set<string>();
+    
+    data.entities.forEach(entity => {
+      const associated = entity.associatedEntities;
+      if (!associated || typeof associated !== 'string') return;
+      
+      // Parse comma-separated entity names
+      const names = associated.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
+      
+      names.forEach(name => {
+        const targetId = entityMap.get(name);
+        if (targetId && targetId !== entity.id) {
+          const edgeKey = [entity.id, targetId].sort().join('-');
+          if (!addedEdges.has(edgeKey)) {
+            addedEdges.add(edgeKey);
+            edges.push({
+              id: edgeKey,
+              source: entity.id,
+              target: targetId,
+              style: { stroke: 'hsl(var(--edge-default))', strokeWidth: 1.5 },
+              type: 'smoothstep',
+            });
+          }
+        }
+      });
+    });
 
-    // Row labels
-    const labels = entityTypes.map(t => t.label);
-
-    return { initialNodes: nodes, initialEdges: edges, rowLabels: labels };
+    return { initialNodes: nodes, initialEdges: edges };
   }, [data, entityTypes, selectedEntityId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -175,18 +199,6 @@ export function CampaignGraph({
 
   return (
     <div className="h-full relative">
-      {/* Row Labels */}
-      <div className="absolute left-4 top-0 z-10 flex flex-col pointer-events-none">
-        <div className="h-[80px]" />
-        {rowLabels.map((label, idx) => (
-          <div key={idx} className="h-[150px] flex items-center">
-            <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
-              {label}
-            </span>
-          </div>
-        ))}
-      </div>
-      
       <ReactFlow
         nodes={nodes}
         edges={edges}

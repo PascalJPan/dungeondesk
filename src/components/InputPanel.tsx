@@ -53,6 +53,7 @@ export function InputPanel({
       color: availableColor,
       attributes: [
         { key: 'shortDescription', label: 'Short Description' },
+        { key: 'associatedEntities', label: 'Associated Entities' },
       ],
     };
     onEntityTypesChange([...entityTypes, newType]);
@@ -298,6 +299,19 @@ export function InputPanel({
                           onChange={(e) => handleUpdateEntityTypeKey(typeDef.key, e.target.value)}
                           className="h-8 text-sm font-serif"
                           placeholder="Entity type name"
+                        />
+                      </div>
+
+                      {/* Extraction Prompt */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                          Extraction Prompt
+                        </Label>
+                        <Textarea
+                          value={typeDef.extractionPrompt || ''}
+                          onChange={(e) => handleUpdateEntityType(typeDef.key, { extractionPrompt: e.target.value })}
+                          className="min-h-[60px] text-sm font-serif resize-none"
+                          placeholder="Optional: AI guidance for extracting this entity type..."
                         />
                       </div>
 
