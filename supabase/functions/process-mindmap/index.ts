@@ -271,6 +271,25 @@ Respond with ONLY valid JSON in this exact format:
       });
     });
 
+    // Final cleanup: Remove non-existent entity references from associations
+    entities.forEach(entity => {
+      if (!entity.associatedEntities) return;
+      
+      let assocs: string[] = [];
+      if (Array.isArray(entity.associatedEntities)) {
+        assocs = entity.associatedEntities.map((s: any) => String(s).trim()).filter(Boolean);
+      } else if (typeof entity.associatedEntities === 'string') {
+        assocs = entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      
+      // Only keep associations that reference existing entities
+      const validAssocs = assocs.filter((assocName: string) => 
+        entityNames.has(assocName.toLowerCase())
+      );
+      
+      entity.associatedEntities = validAssocs.join(', ');
+    });
+
     console.log(`Final entity count: ${entities.length}`);
 
     return new Response(

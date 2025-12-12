@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
+import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle, FileJson } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,7 @@ export function InputPanel({
   const [openEntityTypes, setOpenEntityTypes] = useState<string[]>([]);
   const [keepAllEntities, setKeepAllEntities] = useState(true);
   const [deleteWarning, setDeleteWarning] = useState<DeleteWarning | null>(null);
+  const [jsonInput, setJsonInput] = useState('');
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
@@ -158,25 +159,9 @@ export function InputPanel({
     }
   };
 
-  const handleFileUpload = useCallback(async (file: File) => {
-    if (file.name.toLowerCase().endsWith('.json')) {
-      try {
-        const text = await file.text();
-        const data = JSON.parse(text) as CampaignExport;
-        if (data.version && data.entities) {
-          onImport(data, keepAllEntities);
-          setFileName(file.name);
-          return;
-        }
-      } catch (error) {
-        console.error('Invalid JSON:', error);
-        alert('Invalid campaign JSON file');
-        return;
-      }
-    }
-
+  const handlePdfUpload = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      alert('Please upload a PDF or JSON file');
+      alert('Please upload a PDF file');
       return;
     }
 
@@ -208,14 +193,39 @@ export function InputPanel({
     } finally {
       setIsExtracting(false);
     }
-  }, [onImport]);
+  }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleJsonFileUpload = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as CampaignExport;
+      if (data.version && data.entities) {
+        onImport(data, keepAllEntities);
+      } else {
+        alert('Invalid campaign JSON format');
+      }
+    } catch (error) {
+      console.error('Invalid JSON:', error);
+      alert('Invalid JSON file');
+    }
+  }, [onImport, keepAllEntities]);
+
+  const handleDrop = useCallback((e: React.DragEvent, forJson: boolean = false) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file) handleFileUpload(file);
-  }, [handleFileUpload]);
+    if (file) {
+      if (forJson) {
+        if (file.name.toLowerCase().endsWith('.json')) {
+          handleJsonFileUpload(file);
+        } else {
+          alert('Please upload a JSON file');
+        }
+      } else {
+        handlePdfUpload(file);
+      }
+    }
+  }, [handlePdfUpload, handleJsonFileUpload]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -226,10 +236,15 @@ export function InputPanel({
     setIsDragging(false);
   }, []);
 
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePdfFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) handleFileUpload(file);
-  }, [handleFileUpload]);
+    if (file) handlePdfUpload(file);
+  }, [handlePdfUpload]);
+
+  const handleJsonFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleJsonFileUpload(file);
+  }, [handleJsonFileUpload]);
 
   const handleGenerate = () => {
     if (!inputText.trim() || entityTypes.length === 0) return;
@@ -241,6 +256,21 @@ export function InputPanel({
     onProcess(inputText, extractionOptions, keepAllEntities);
   };
 
+  const handleJsonImport = () => {
+    try {
+      const data = JSON.parse(jsonInput) as CampaignExport;
+      if (data.version && data.entities) {
+        onImport(data, keepAllEntities);
+        setJsonInput('');
+      } else {
+        alert('Invalid campaign JSON format');
+      }
+    } catch (error) {
+      console.error('Invalid JSON:', error);
+      alert('Invalid JSON format');
+    }
+  };
+
   const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && entityTypes.length > 0;
 
   return (
@@ -249,17 +279,24 @@ export function InputPanel({
         <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent p-0 h-auto shrink-0">
           <TabsTrigger 
             value="settings"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 py-3 font-serif text-xs"
           >
             <Settings className="w-4 h-4 mr-1" />
             Settings
           </TabsTrigger>
           <TabsTrigger 
-            value="input"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
+            value="extract"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 py-3 font-serif text-xs"
           >
             <FileText className="w-4 h-4 mr-1" />
-            Input
+            Extract
+          </TabsTrigger>
+          <TabsTrigger 
+            value="json"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 py-3 font-serif text-xs"
+          >
+            <FileJson className="w-4 h-4 mr-1" />
+            JSON
           </TabsTrigger>
         </TabsList>
 
@@ -414,117 +451,110 @@ export function InputPanel({
           </div>
         </TabsContent>
 
-        {/* Input Tab */}
-        <TabsContent value="input" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
+        {/* Extract Tab (AI Extraction from PDF/Text) */}
+        <TabsContent value="extract" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
           <div className="p-4 space-y-4 ink-texture">
             {/* Header */}
             <div className="space-y-1">
-              <h2 className="text-lg font-display text-foreground">Campaign Input</h2>
+              <h2 className="text-lg font-display text-foreground">AI Extraction</h2>
               <p className="text-sm text-muted-foreground font-serif">
-                Upload notes, paste text, or import JSON
+                Upload PDF or paste text for AI extraction
               </p>
             </div>
-
-            {/* Import/Export */}
-            {hasData && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full font-serif"
-                onClick={onExport}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export JSON
-              </Button>
-            )}
 
             {/* File Upload */}
             <div
               className={cn(
-                "relative border-2 border-dashed rounded-lg p-6 transition-all duration-200 cursor-pointer",
-                isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30",
-                isExtracting && "pointer-events-none opacity-70"
+                "border-2 border-dashed rounded-lg p-4 text-center transition-colors",
+                isDragging ? "border-primary bg-primary/5" : "border-border",
+                isExtracting && "pointer-events-none opacity-50"
               )}
-              onDrop={handleDrop}
+              onDrop={(e) => handleDrop(e, false)}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              onClick={() => document.getElementById('file-input')?.click()}
             >
-              <input
-                id="file-input"
-                type="file"
-                accept=".pdf,.json"
-                className="hidden"
-                onChange={handleFileInput}
-              />
-              <div className="flex flex-col items-center gap-2 text-center">
-                {isExtracting ? (
-                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                ) : (
-                  <Upload className={cn(
-                    "w-8 h-8 transition-colors",
-                    isDragging ? "text-primary" : "text-muted-foreground"
-                  )} />
-                )}
-                <div>
-                  {fileName ? (
-                    <div className="flex items-center gap-2 text-sm text-foreground font-serif">
-                      <FileText className="w-4 h-4 text-primary" />
-                      {fileName}
-                    </div>
-                  ) : isExtracting ? (
-                    <p className="text-sm text-muted-foreground font-serif">Extracting text...</p>
-                  ) : (
-                    <>
-                      <p className="text-sm font-medium text-foreground font-serif">
-                        Drop PDF or JSON here
-                      </p>
-                      <p className="text-xs text-muted-foreground font-serif">PDF for extraction, JSON to continue</p>
-                    </>
-                  )}
+              {isExtracting ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground font-serif">Extracting text...</span>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <Upload className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground font-serif mb-2">
+                    {fileName ? fileName : 'Drop PDF here or'}
+                  </p>
+                  <label>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handlePdfFileInput}
+                      className="hidden"
+                    />
+                    <Button variant="outline" size="sm" className="font-serif" asChild>
+                      <span>Browse PDF</span>
+                    </Button>
+                  </label>
+                </>
+              )}
             </div>
 
             {/* Text Input */}
-            <div className="flex-1 flex flex-col gap-2 min-h-0">
-              <div className="flex items-center gap-2">
-                <Type className="w-4 h-4 text-muted-foreground" />
-                <Label className="text-sm text-muted-foreground font-serif">Or paste text directly</Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider flex items-center gap-2">
+                  <Type className="w-3 h-3" />
+                  Or Paste Text
+                </Label>
+                {inputText && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs font-serif text-muted-foreground"
+                    onClick={() => {
+                      setInputText('');
+                      setFileName(null);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                )}
               </div>
               <Textarea
-                placeholder="Paste your campaign notes here..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                className="flex-1 min-h-[150px] resize-none bg-muted/30 border-border focus:border-primary/50 text-sm scrollbar-thin font-serif"
+                placeholder="Paste your campaign notes, adventures, or world-building content here..."
+                className="min-h-[200px] font-serif text-sm resize-none"
               />
-              <div className="text-xs text-muted-foreground text-right font-mono">
-                {inputText.length.toLocaleString()} characters
-              </div>
+              <p className="text-xs text-muted-foreground font-serif">
+                {inputText.length} characters
+              </p>
             </div>
 
             {/* Keep All Entities Checkbox */}
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border">
+            <div className="flex items-center space-x-2">
               <Checkbox
-                id="keep-all-entities"
+                id="keepAllEntities"
                 checked={keepAllEntities}
                 onCheckedChange={(checked) => setKeepAllEntities(checked === true)}
               />
-              <Label htmlFor="keep-all-entities" className="text-sm font-serif cursor-pointer flex-1">
-                Keep existing entities (merge)
-              </Label>
+              <label
+                htmlFor="keepAllEntities"
+                className="text-sm font-serif text-muted-foreground cursor-pointer"
+              >
+                Keep all entities (merge, don't replace)
+              </label>
             </div>
 
             {/* Generate Button */}
             <Button
-              size="lg"
               onClick={handleGenerate}
               disabled={!canGenerate}
-              className="w-full font-display text-base glow-primary-sm"
+              className="w-full font-serif"
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   {processingState.message}
                 </>
               ) : (
@@ -532,27 +562,98 @@ export function InputPanel({
               )}
             </Button>
 
-            {/* Progress */}
-            {isProcessing && (
-              <div className="space-y-2">
-                <div className="h-1 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{ width: `${processingState.progress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground text-center font-mono">
-                  {processingState.progress}% complete
-                </p>
-              </div>
+            {processingState.error && (
+              <p className="text-sm text-destructive font-serif">{processingState.error}</p>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* JSON Tab */}
+        <TabsContent value="json" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
+          <div className="p-4 space-y-4 ink-texture">
+            {/* Header */}
+            <div className="space-y-1">
+              <h2 className="text-lg font-display text-foreground">JSON Import/Export</h2>
+              <p className="text-sm text-muted-foreground font-serif">
+                Import or export campaign data as JSON
+              </p>
+            </div>
+
+            {/* Export Button */}
+            {hasData && (
+              <Button 
+                variant="outline" 
+                className="w-full font-serif"
+                onClick={onExport}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Campaign JSON
+              </Button>
             )}
 
-            {/* Error */}
-            {processingState.status === 'error' && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
-                <p className="text-sm text-destructive font-serif">{processingState.error}</p>
-              </div>
-            )}
+            {/* JSON File Upload */}
+            <div
+              className={cn(
+                "border-2 border-dashed rounded-lg p-4 text-center transition-colors",
+                isDragging ? "border-primary bg-primary/5" : "border-border"
+              )}
+              onDrop={(e) => handleDrop(e, true)}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+            >
+              <FileJson className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground font-serif mb-2">
+                Drop JSON file here or
+              </p>
+              <label>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleJsonFileInput}
+                  className="hidden"
+                />
+                <Button variant="outline" size="sm" className="font-serif" asChild>
+                  <span>Browse JSON</span>
+                </Button>
+              </label>
+            </div>
+
+            {/* JSON Text Input */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                Or Paste JSON
+              </Label>
+              <Textarea
+                value={jsonInput}
+                onChange={(e) => setJsonInput(e.target.value)}
+                placeholder='{"version": "1.0", "entities": [...], "entityTypes": [...]}'
+                className="min-h-[150px] font-mono text-xs resize-none"
+              />
+            </div>
+
+            {/* Keep All Entities Checkbox */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="keepAllEntitiesJson"
+                checked={keepAllEntities}
+                onCheckedChange={(checked) => setKeepAllEntities(checked === true)}
+              />
+              <label
+                htmlFor="keepAllEntitiesJson"
+                className="text-sm font-serif text-muted-foreground cursor-pointer"
+              >
+                Keep all entities (merge, don't replace)
+              </label>
+            </div>
+
+            {/* Import Button */}
+            <Button
+              onClick={handleJsonImport}
+              disabled={!jsonInput.trim()}
+              className="w-full font-serif"
+            >
+              Import JSON
+            </Button>
           </div>
         </TabsContent>
       </Tabs>
@@ -563,16 +664,16 @@ export function InputPanel({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="w-5 h-5" />
-              Warning: Data will be deleted
+              Confirm Deletion
             </DialogTitle>
-            <DialogDescription className="text-sm">
+            <DialogDescription className="font-serif">
               {deleteWarning?.type === 'entityType' ? (
                 <>
-                  Deleting this entity type will remove <strong>{deleteWarning.affectedCount} entities</strong> from your campaign.
+                  Deleting this entity type will remove <strong>{deleteWarning.affectedCount}</strong> existing entities.
                 </>
               ) : (
                 <>
-                  Deleting this attribute will remove content from <strong>{deleteWarning?.affectedCount} entities</strong>.
+                  Deleting this attribute will remove content from <strong>{deleteWarning?.affectedCount}</strong> entities.
                 </>
               )}
             </DialogDescription>
@@ -581,8 +682,8 @@ export function InputPanel({
             <Button variant="outline" onClick={() => setDeleteWarning(null)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={deleteWarning?.onConfirm}>
-              Delete Anyway
+            <Button variant="destructive" onClick={() => deleteWarning?.onConfirm()}>
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

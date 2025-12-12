@@ -491,7 +491,9 @@ export default function Index() {
                 <EntityReader 
                   entity={selectedEntity}
                   entityTypes={entityTypes}
+                  entities={campaignData?.entities || []}
                   onClose={() => setSelectedEntity(null)}
+                  onEntityClick={handleEntitySelect}
                 />
               </TabsContent>
               <TabsContent value="edit" className="flex-1 m-0 min-h-0">
