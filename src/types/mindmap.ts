@@ -110,7 +110,7 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
     attributes: [
       { key: 'shortDescription', label: 'Short Description' },
       { key: 'longDescription', label: 'Detailed Description' },
-      { key: 'type', label: 'Type' },
+      { key: 'itemType', label: 'Type' },
       { key: 'properties', label: 'Properties' },
       { key: 'history', label: 'History' },
       { key: 'associatedEntities', label: 'Associated Entities' },
