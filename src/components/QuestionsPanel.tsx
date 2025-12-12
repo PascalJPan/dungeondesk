@@ -1,17 +1,17 @@
 import React from 'react';
 import { HelpCircle, ArrowRight, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { CampaignData, EmptyField, getEmptyFields, ENTITY_TYPE_INFO } from '@/types/mindmap';
+import { CampaignData, EmptyField, getEmptyFields, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 
 interface QuestionsPanelProps {
   data: CampaignData | null;
+  entityTypes: EntityTypeDef[];
   onSelectField: (entityId: string, fieldKey: string) => void;
 }
 
-export function QuestionsPanel({ data, onSelectField }: QuestionsPanelProps) {
+export function QuestionsPanel({ data, entityTypes, onSelectField }: QuestionsPanelProps) {
   if (!data || data.entities.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
@@ -23,7 +23,7 @@ export function QuestionsPanel({ data, onSelectField }: QuestionsPanelProps) {
     );
   }
 
-  const emptyFields = getEmptyFields(data);
+  const emptyFields = getEmptyFields(data, entityTypes);
 
   // Group by entity
   const groupedByEntity: Record<string, EmptyField[]> = {};
@@ -70,14 +70,14 @@ export function QuestionsPanel({ data, onSelectField }: QuestionsPanelProps) {
         <div className="p-4 space-y-4">
           {Object.entries(groupedByEntity).map(([entityId, fields]) => {
             const firstField = fields[0];
-            const typeInfo = ENTITY_TYPE_INFO[firstField.entityType];
+            const color = getEntityColor(entityTypes, firstField.entityType);
             
             return (
               <div key={entityId} className="space-y-2">
                 <div className="flex items-center gap-2">
                   <span 
                     className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: typeInfo.color }}
+                    style={{ backgroundColor: color }}
                   />
                   <span className="font-medium text-sm font-serif">{firstField.entityName}</span>
                   <Badge variant="outline" className="text-[10px]">
