@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle, FileJson } from 'lucide-react';
+import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle, FileJson, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,43 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
+
+function generateExternalPrompt(entityTypes: EntityTypeDef[]): string {
+  const entitySchemas = entityTypes.map(type => {
+    const attrs = type.attributes.map(attr => `    "${attr.key}": "string" // ${attr.label}`).join(',\n');
+    return `  // ${type.label}
+  {
+    "id": "${type.key}-1",
+    "type": "${type.key}",
+    "name": "Entity Name",
+${attrs}
+  }`;
+  }).join(',\n\n');
+
+  return `You are helping create a D&D/TTRPG campaign. Generate entities in the following JSON format.
+
+IMPORTANT: Output ONLY valid JSON, no explanations.
+
+The JSON structure should be:
+{
+  "version": "1.0",
+  "entities": [
+${entitySchemas}
+  ],
+  "entityTypes": ${JSON.stringify(entityTypes, null, 2)}
+}
+
+Entity Types and their attributes:
+${entityTypes.map(type => {
+  return `- ${type.label} (type: "${type.key}")${type.extractionPrompt ? `\n  Guidance: ${type.extractionPrompt}` : ''}
+  Attributes: ${type.attributes.map(a => a.label).join(', ')}`;
+}).join('\n\n')}
+
+Generate entities based on the campaign content I provide. Make sure each entity has a unique id following the pattern "type-number" (e.g., "character-1", "location-2").
+
+For "associatedEntities", list the names of related entities as a comma-separated string.`;
+}
 
 interface InputPanelProps {
   onProcess: (text: string, extractionOptions: ExtractionOptions, keepExisting: boolean) => void;
@@ -448,6 +485,27 @@ export function InputPanel({
               <Plus className="w-4 h-4 mr-2" />
               Add Entity Type
             </Button>
+
+            <div className="pt-4 border-t border-border mt-4">
+              <Button
+                variant="outline"
+                className="w-full font-serif"
+                onClick={() => {
+                  const prompt = generateExternalPrompt(entityTypes);
+                  navigator.clipboard.writeText(prompt);
+                  toast({
+                    title: "Prompt copied",
+                    description: "Use this prompt with ChatGPT or other AI tools",
+                  });
+                }}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Prompt for External AI
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2 font-serif">
+                Copy a prompt to use with ChatGPT or other AI to generate compatible JSON
+              </p>
+            </div>
           </div>
         </TabsContent>
 

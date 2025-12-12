@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 
 interface NodeGraphProps {
@@ -11,14 +11,11 @@ interface NodeGraphProps {
 interface NodePosition {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
 }
 
 export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId }: NodeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
   const [positions, setPositions] = useState<Map<string, NodePosition>>(new Map());
   const [dragging, setDragging] = useState<string | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -28,9 +25,15 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
 
   const entities = data?.entities || [];
 
-  // Build connections map
-  const connections = React.useMemo(() => {
+  // Build connections map and count
+  const { connections, connectionCounts } = useMemo(() => {
     const map = new Map<string, Set<string>>();
+    const counts = new Map<string, number>();
+    
+    entities.forEach(entity => {
+      counts.set(entity.id, 0);
+    });
+    
     entities.forEach(entity => {
       if (!entity.associatedEntities) return;
       const assocs = entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -41,114 +44,86 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
           if (!map.has(linked.id)) map.set(linked.id, new Set());
           map.get(entity.id)!.add(linked.id);
           map.get(linked.id)!.add(entity.id);
+          counts.set(entity.id, (counts.get(entity.id) || 0) + 1);
+          counts.set(linked.id, (counts.get(linked.id) || 0) + 1);
         }
       });
     });
-    return map;
+    return { connections: map, connectionCounts: counts };
   }, [entities]);
 
-  // Initialize positions
+  // Sort entities by connection count (most connected first)
+  const sortedEntities = useMemo(() => {
+    return [...entities].sort((a, b) => 
+      (connectionCounts.get(b.id) || 0) - (connectionCounts.get(a.id) || 0)
+    );
+  }, [entities, connectionCounts]);
+
+  // Calculate static positions - connected entities closer together
   useEffect(() => {
     if (!containerRef.current || entities.length === 0) return;
 
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
+    const centerX = width / 2;
+    const centerY = height / 2;
     const newPositions = new Map<string, NodePosition>();
+    const placed = new Set<string>();
 
-    entities.forEach((entity, i) => {
-      const angle = (2 * Math.PI * i) / entities.length;
-      const radius = Math.min(width, height) * 0.3;
-      newPositions.set(entity.id, {
-        x: width / 2 + Math.cos(angle) * radius,
-        y: height / 2 + Math.sin(angle) * radius,
-        vx: 0,
-        vy: 0,
+    // Place entities in layers based on connections
+    const layers: string[][] = [];
+    const remaining = new Set(sortedEntities.map(e => e.id));
+    
+    // First layer: most connected entities
+    if (sortedEntities.length > 0) {
+      const firstLayerCount = Math.min(Math.ceil(sortedEntities.length / 4), 5);
+      layers.push(sortedEntities.slice(0, firstLayerCount).map(e => e.id));
+      layers[0].forEach(id => remaining.delete(id));
+    }
+
+    // Subsequent layers: entities connected to previous layers
+    while (remaining.size > 0) {
+      const layer: string[] = [];
+      const prevLayer = layers[layers.length - 1] || [];
+      
+      remaining.forEach(id => {
+        const conns = connections.get(id);
+        if (!conns) {
+          layer.push(id);
+          return;
+        }
+        const hasConnectionToPrev = prevLayer.some(prevId => conns.has(prevId));
+        if (hasConnectionToPrev || layers.length === 0) {
+          layer.push(id);
+        }
+      });
+
+      // If no connections found, add remaining
+      if (layer.length === 0) {
+        remaining.forEach(id => layer.push(id));
+      }
+
+      layer.forEach(id => remaining.delete(id));
+      if (layer.length > 0) {
+        layers.push(layer);
+      }
+    }
+
+    // Position entities in concentric circles
+    layers.forEach((layer, layerIdx) => {
+      const radius = 80 + layerIdx * 120;
+      layer.forEach((entityId, i) => {
+        const angle = (2 * Math.PI * i) / layer.length - Math.PI / 2;
+        newPositions.set(entityId, {
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius,
+        });
+        placed.add(entityId);
       });
     });
 
     setPositions(newPositions);
-  }, [entities.length]);
-
-  // Force-directed simulation
-  useEffect(() => {
-    if (positions.size === 0) return;
-
-    const simulate = () => {
-      setPositions(prev => {
-        const newPos = new Map(prev);
-        const width = containerRef.current?.clientWidth || 800;
-        const height = containerRef.current?.clientHeight || 600;
-        const centerX = width / 2;
-        const centerY = height / 2;
-
-        // Apply forces
-        entities.forEach(entity => {
-          const pos = newPos.get(entity.id);
-          if (!pos || dragging === entity.id) return;
-
-          let fx = 0, fy = 0;
-
-          // Repulsion from all other nodes
-          entities.forEach(other => {
-            if (other.id === entity.id) return;
-            const otherPos = newPos.get(other.id);
-            if (!otherPos) return;
-
-            const dx = pos.x - otherPos.x;
-            const dy = pos.y - otherPos.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const force = 5000 / (dist * dist);
-            fx += (dx / dist) * force;
-            fy += (dy / dist) * force;
-          });
-
-          // Attraction to connected nodes
-          const connected = connections.get(entity.id);
-          if (connected) {
-            connected.forEach(otherId => {
-              const otherPos = newPos.get(otherId);
-              if (!otherPos) return;
-
-              const dx = otherPos.x - pos.x;
-              const dy = otherPos.y - pos.y;
-              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-              const force = (dist - 150) * 0.05;
-              fx += (dx / dist) * force;
-              fy += (dy / dist) * force;
-            });
-          }
-
-          // Gravity towards center
-          const dx = centerX - pos.x;
-          const dy = centerY - pos.y;
-          fx += dx * 0.001;
-          fy += dy * 0.001;
-
-          // Update velocity and position
-          pos.vx = (pos.vx + fx) * 0.9;
-          pos.vy = (pos.vy + fy) * 0.9;
-          pos.x += pos.vx;
-          pos.y += pos.vy;
-
-          // Keep in bounds
-          pos.x = Math.max(50, Math.min(width - 50, pos.x));
-          pos.y = Math.max(50, Math.min(height - 50, pos.y));
-        });
-
-        return newPos;
-      });
-
-      animationRef.current = requestAnimationFrame(simulate);
-    };
-
-    animationRef.current = requestAnimationFrame(simulate);
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [positions.size, entities, connections, dragging]);
+  }, [entities.length, sortedEntities, connections]);
 
   // Draw canvas
   useEffect(() => {
@@ -166,14 +141,14 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
     ctx.translate(pan.x, pan.y);
 
     // Draw connections
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
     connections.forEach((connected, entityId) => {
       const pos = positions.get(entityId);
       if (!pos) return;
       connected.forEach(otherId => {
         const otherPos = positions.get(otherId);
-        if (!otherPos || otherId < entityId) return; // Draw each line once
+        if (!otherPos || otherId < entityId) return;
         ctx.beginPath();
         ctx.moveTo(pos.x, pos.y);
         ctx.lineTo(otherPos.x, otherPos.y);
@@ -188,8 +163,8 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
 
       const color = getEntityColor(entityTypes, entity.type);
       const isSelected = entity.id === selectedEntityId;
-      const connectionCount = connections.get(entity.id)?.size || 0;
-      const radius = 20 + Math.min(connectionCount * 3, 15);
+      const connectionCount = connectionCounts.get(entity.id) || 0;
+      const radius = 16 + Math.min(connectionCount * 2, 10);
 
       // Node circle
       ctx.beginPath();
@@ -205,15 +180,15 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
 
       // Label
       ctx.fillStyle = '#ffffff';
-      ctx.font = '12px serif';
+      ctx.font = '11px serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const name = entity.name.length > 15 ? entity.name.slice(0, 12) + '...' : entity.name;
-      ctx.fillText(name, pos.x, pos.y + radius + 15);
+      const name = entity.name.length > 12 ? entity.name.slice(0, 10) + '...' : entity.name;
+      ctx.fillText(name, pos.x, pos.y + radius + 12);
     });
 
     ctx.restore();
-  }, [positions, entities, entityTypes, selectedEntityId, connections, pan]);
+  }, [positions, entities, entityTypes, selectedEntityId, connections, connectionCounts, pan]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -228,8 +203,8 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
       if (!pos) continue;
       const dx = x - pos.x;
       const dy = y - pos.y;
-      const connectionCount = connections.get(entity.id)?.size || 0;
-      const radius = 20 + Math.min(connectionCount * 3, 15);
+      const connectionCount = connectionCounts.get(entity.id) || 0;
+      const radius = 16 + Math.min(connectionCount * 2, 10);
       if (dx * dx + dy * dy < radius * radius) {
         setDragging(entity.id);
         setOffset({ x: dx, y: dy });
@@ -241,7 +216,7 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
     // Start panning
     setIsPanning(true);
     setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-  }, [entities, positions, connections, pan, onEntitySelect]);
+  }, [entities, positions, connectionCounts, pan, onEntitySelect]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
@@ -261,13 +236,7 @@ export function NodeGraph({ data, entityTypes, onEntitySelect, selectedEntityId 
 
     setPositions(prev => {
       const newPos = new Map(prev);
-      const pos = newPos.get(dragging);
-      if (pos) {
-        pos.x = x;
-        pos.y = y;
-        pos.vx = 0;
-        pos.vy = 0;
-      }
+      newPos.set(dragging, { x, y });
       return newPos;
     });
   }, [dragging, offset, pan, isPanning, panStart]);

@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid, Sword, Network } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, Sword, Network, Grid3X3 } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
 import { EntityEditor } from '@/components/EntityEditor';
 import { EntityReader } from '@/components/EntityReader';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
-import { CampaignGraph } from '@/components/CampaignGraph';
 import { NodeGraph } from '@/components/NodeGraph';
+import { TableView } from '@/components/TableView';
 import { CombatTracker } from '@/components/CombatTracker';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,7 +27,7 @@ export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [activeRightTab, setActiveRightTab] = useState<'read' | 'edit' | 'questions'>('read');
-  const [viewMode, setViewMode] = useState<'graph' | 'list' | 'combat' | 'nodes'>('graph');
+  const [viewMode, setViewMode] = useState<'list' | 'combat' | 'nodes' | 'table'>('list');
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
@@ -348,15 +348,6 @@ export default function Index() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('graph')}
-            className="font-serif"
-          >
-            <LayoutGrid className="w-4 h-4 mr-1" />
-            Graph
-          </Button>
-          <Button
             variant={viewMode === 'list' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('list')}
@@ -366,15 +357,6 @@ export default function Index() {
             List
           </Button>
           <Button
-            variant={viewMode === 'combat' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('combat')}
-            className="font-serif"
-          >
-            <Sword className="w-4 h-4 mr-1" />
-            Combat
-          </Button>
-          <Button
             variant={viewMode === 'nodes' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('nodes')}
@@ -382,6 +364,24 @@ export default function Index() {
           >
             <Network className="w-4 h-4 mr-1" />
             Nodes
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('table')}
+            className="font-serif"
+          >
+            <Grid3X3 className="w-4 h-4 mr-1" />
+            Table
+          </Button>
+          <Button
+            variant={viewMode === 'combat' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('combat')}
+            className="font-serif"
+          >
+            <Sword className="w-4 h-4 mr-1" />
+            Combat
           </Button>
         </div>
       </header>
@@ -425,14 +425,7 @@ export default function Index() {
 
         {/* Main Area */}
         <main className="flex-1 min-w-0 relative">
-          {viewMode === 'graph' ? (
-            <CampaignGraph 
-              data={campaignData}
-              entityTypes={entityTypes}
-              onEntitySelect={handleEntitySelect}
-              selectedEntityId={selectedEntity?.id || null}
-            />
-          ) : viewMode === 'list' ? (
+          {viewMode === 'list' ? (
             <EntityList
               data={campaignData}
               entityTypes={entityTypes}
@@ -442,6 +435,13 @@ export default function Index() {
             />
           ) : viewMode === 'combat' ? (
             <CombatTracker
+              data={campaignData}
+              entityTypes={entityTypes}
+              onEntitySelect={handleEntitySelect}
+              selectedEntityId={selectedEntity?.id || null}
+            />
+          ) : viewMode === 'table' ? (
+            <TableView
               data={campaignData}
               entityTypes={entityTypes}
               onEntitySelect={handleEntitySelect}
