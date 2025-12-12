@@ -91,6 +91,11 @@ IMPORTANT RULES:
 3. Leave fields empty ("") if information is not provided in the text
 4. Do NOT invent information - only extract what's in the text
 5. Each attribute value should be text (string)
+6. For combat stats (healthPoints, armorClass, speed, speedWater), extract as strings (e.g., "45", "16", "30ft", "40ft")
+7. For attacks, format as multi-line text like:
+   "Attack Name
+   - +X to hit
+   - XdX + X damage type"
 
 Respond with ONLY valid JSON in this exact format:
 {
@@ -193,7 +198,65 @@ Respond with ONLY valid JSON in this exact format:
       })
       .filter(Boolean) as ExtractedEntity[];
 
-    console.log(`Extracted ${entities.length} entities`);
+    console.log(`Extracted ${entities.length} entities, now building associations...`);
+
+    // Second pass: Build bidirectional associations
+    const entityNames = new Set(entities.map(e => e.name.toLowerCase()));
+    const entityById = new Map(entities.map(e => [e.id, e]));
+    const entityByName = new Map(entities.map(e => [e.name.toLowerCase(), e]));
+
+    // For each entity, scan all text fields for mentions of other entities
+    entities.forEach(entity => {
+      const mentionedEntities: string[] = [];
+      
+      // Get all text content from this entity
+      const textContent = Object.entries(entity)
+        .filter(([key]) => !['id', 'type', 'name', 'associatedEntities'].includes(key))
+        .map(([, value]) => String(value || ''))
+        .join(' ')
+        .toLowerCase();
+      
+      // Check for mentions of other entities
+      entities.forEach(otherEntity => {
+        if (otherEntity.id === entity.id) return;
+        
+        const otherName = otherEntity.name.toLowerCase();
+        if (textContent.includes(otherName)) {
+          mentionedEntities.push(otherEntity.name);
+        }
+      });
+      
+      // Merge with any AI-extracted associations
+      const existingAssocs = entity.associatedEntities 
+        ? entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      
+      const allAssocs = [...new Set([...existingAssocs, ...mentionedEntities])];
+      entity.associatedEntities = allAssocs.join(', ');
+    });
+
+    // Make associations bidirectional
+    entities.forEach(entity => {
+      const assocs = entity.associatedEntities 
+        ? entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      
+      assocs.forEach((assocName: string) => {
+        const linkedEntity = entityByName.get(assocName.toLowerCase());
+        if (linkedEntity && linkedEntity.id !== entity.id) {
+          const linkedAssocs = linkedEntity.associatedEntities 
+            ? linkedEntity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : [];
+          
+          if (!linkedAssocs.some((a: string) => a.toLowerCase() === entity.name.toLowerCase())) {
+            linkedAssocs.push(entity.name);
+            linkedEntity.associatedEntities = linkedAssocs.join(', ');
+          }
+        }
+      });
+    });
+
+    console.log(`Final entity count: ${entities.length}`);
 
     return new Response(
       JSON.stringify({ entities }),

@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid, Sword } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
 import { EntityEditor } from '@/components/EntityEditor';
 import { EntityReader } from '@/components/EntityReader';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { CampaignGraph } from '@/components/CampaignGraph';
+import { CombatTracker } from '@/components/CombatTracker';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -25,7 +26,7 @@ export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [activeRightTab, setActiveRightTab] = useState<'read' | 'edit' | 'questions'>('read');
-  const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph');
+  const [viewMode, setViewMode] = useState<'graph' | 'list' | 'combat'>('graph');
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
@@ -152,11 +153,60 @@ export default function Index() {
   const handleEntitySave = useCallback((updatedEntity: CampaignEntity) => {
     setCampaignData(prev => {
       if (!prev) return prev;
+      
+      // Get the old entity to compare associations
+      const oldEntity = prev.entities.find(e => e.id === updatedEntity.id);
+      const oldAssocs = oldEntity?.associatedEntities 
+        ? oldEntity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      const newAssocs = updatedEntity.associatedEntities 
+        ? updatedEntity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      
+      // Find added and removed associations
+      const addedAssocs = newAssocs.filter((a: string) => !oldAssocs.includes(a));
+      const removedAssocs = oldAssocs.filter((a: string) => !newAssocs.includes(a));
+      
+      let updatedEntities = prev.entities.map(e => 
+        e.id === updatedEntity.id ? updatedEntity : e
+      );
+      
+      // Sync bidirectional associations
+      updatedEntities = updatedEntities.map(entity => {
+        if (entity.id === updatedEntity.id) return entity;
+        
+        const entityAssocs = entity.associatedEntities 
+          ? entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : [];
+        
+        let modified = false;
+        
+        // If this entity was added as an association, add the current entity to it
+        if (addedAssocs.some((a: string) => a.toLowerCase() === entity.name.toLowerCase())) {
+          if (!entityAssocs.some((a: string) => a.toLowerCase() === updatedEntity.name.toLowerCase())) {
+            entityAssocs.push(updatedEntity.name);
+            modified = true;
+          }
+        }
+        
+        // If this entity was removed as an association, remove the current entity from it
+        if (removedAssocs.some((a: string) => a.toLowerCase() === entity.name.toLowerCase())) {
+          const idx = entityAssocs.findIndex((a: string) => a.toLowerCase() === updatedEntity.name.toLowerCase());
+          if (idx !== -1) {
+            entityAssocs.splice(idx, 1);
+            modified = true;
+          }
+        }
+        
+        if (modified) {
+          return { ...entity, associatedEntities: entityAssocs.join(', ') };
+        }
+        return entity;
+      });
+      
       return {
         ...prev,
-        entities: prev.entities.map(e => 
-          e.id === updatedEntity.id ? updatedEntity : e
-        ),
+        entities: updatedEntities,
       };
     });
     setSelectedEntity(updatedEntity);
@@ -236,6 +286,15 @@ export default function Index() {
             <List className="w-4 h-4 mr-1" />
             List
           </Button>
+          <Button
+            variant={viewMode === 'combat' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('combat')}
+            className="font-serif"
+          >
+            <Sword className="w-4 h-4 mr-1" />
+            Combat
+          </Button>
         </div>
       </header>
 
@@ -284,13 +343,20 @@ export default function Index() {
               onEntitySelect={handleEntitySelect}
               selectedEntityId={selectedEntity?.id || null}
             />
-          ) : (
+          ) : viewMode === 'list' ? (
             <EntityList
               data={campaignData}
               entityTypes={entityTypes}
               selectedEntityId={selectedEntity?.id || null}
               onSelectEntity={handleEntitySelect}
               onAddEntity={handleAddEntity}
+            />
+          ) : (
+            <CombatTracker
+              data={campaignData}
+              entityTypes={entityTypes}
+              onEntitySelect={handleEntitySelect}
+              selectedEntityId={selectedEntity?.id || null}
             />
           )}
         </main>
