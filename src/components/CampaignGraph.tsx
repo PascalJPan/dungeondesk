@@ -41,7 +41,7 @@ function EntityNode({ data }: NodeProps<CampaignEntity & { isSelected: boolean }
         }}
       >
         <span 
-          className="text-xs font-medium text-center leading-tight"
+          className="text-xs font-serif font-medium text-center leading-tight"
           style={{ 
             color: 'white',
             textShadow: '0 1px 2px rgba(0,0,0,0.5)',
@@ -185,11 +185,11 @@ export function CampaignGraph({
       <div className="h-full flex items-center justify-center text-muted-foreground">
         <div className="text-center space-y-4">
           <div className="w-24 h-24 mx-auto rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-            <span className="text-4xl">🗺️</span>
+            <span className="text-4xl">📜</span>
           </div>
           <div>
-            <p className="font-mono text-sm">No campaign extracted</p>
-            <p className="text-xs mt-1">Upload campaign notes to get started</p>
+            <p className="font-display text-sm">No campaign extracted</p>
+            <p className="text-xs mt-1 font-serif">Upload campaign notes to get started</p>
           </div>
         </div>
       </div>
@@ -202,22 +202,22 @@ export function CampaignGraph({
       <div className="absolute left-4 top-0 z-10 flex flex-col pointer-events-none">
         <div className="h-[80px]" />
         <div className="h-[150px] flex items-center">
-          <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded">
+          <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
             Locations
           </span>
         </div>
         <div className="h-[150px] flex items-center">
-          <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded">
+          <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
             Happenings
           </span>
         </div>
         <div className="h-[150px] flex items-center">
-          <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded">
+          <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
             Characters / Monsters
           </span>
         </div>
         <div className="h-[150px] flex items-center">
-          <span className="text-xs font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded">
+          <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
             Items
           </span>
         </div>

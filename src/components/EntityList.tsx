@@ -32,8 +32,8 @@ export function EntityList({ data, selectedEntityId, onSelectEntity, onAddEntity
             <span className="text-3xl">📜</span>
           </div>
           <div>
-            <p className="font-mono text-sm">No campaign data</p>
-            <p className="text-xs mt-1">Extract campaign notes to see entities</p>
+            <p className="font-display text-sm">No campaign data</p>
+            <p className="text-xs mt-1 font-serif">Extract campaign notes to see entities</p>
           </div>
         </div>
       </div>
@@ -81,7 +81,7 @@ export function EntityList({ data, selectedEntityId, onSelectEntity, onAddEntity
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: typeInfo.color }}
                     />
-                    <span className="font-medium text-sm">{typeInfo.label}</span>
+                    <span className="font-medium text-sm font-serif">{typeInfo.label}</span>
                     <span className="text-xs text-muted-foreground">({entities.length})</span>
                   </div>
                   <ChevronDown className={cn(
@@ -102,8 +102,8 @@ export function EntityList({ data, selectedEntityId, onSelectEntity, onAddEntity
                         selectedEntityId === entity.id && "bg-primary/10 border border-primary/30"
                       )}
                     >
-                      <p className="font-medium text-sm truncate">{entity.name}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
+                      <p className="font-medium text-sm truncate font-serif">{entity.name}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 font-serif">
                         {entity.shortDescription || 'No description'}
                       </p>
                     </button>
@@ -112,7 +112,7 @@ export function EntityList({ data, selectedEntityId, onSelectEntity, onAddEntity
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full justify-start text-muted-foreground hover:text-foreground"
+                      className="w-full justify-start text-muted-foreground hover:text-foreground font-serif"
                       onClick={() => onAddEntity(type)}
                     >
                       <Plus className="w-4 h-4 mr-2" />

@@ -33,8 +33,12 @@ serve(async (req) => {
     }
 
     const entityTypes = extractionOptions?.entityTypes || ['location', 'happening', 'character', 'monster', 'item'];
+    const customAttributes = extractionOptions?.customAttributes || {};
 
     console.log(`Processing text (${text.length} chars) for entity types: ${entityTypes.join(', ')}`);
+    if (Object.keys(customAttributes).length > 0) {
+      console.log('Custom attributes:', JSON.stringify(customAttributes));
+    }
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -73,6 +77,12 @@ serve(async (req) => {
     const typeInstructions = entityTypes.map((type: string) => {
       const fields = entitySchemas[type] || [];
       const relations = relationFields[type] || [];
+      const custom = customAttributes[type] || [];
+      
+      const customFieldsStr = custom.length > 0 
+        ? custom.map((attr: any) => `- ${attr.key}: ${attr.label}`).join('\n')
+        : '';
+      
       return `
 ### ${type.charAt(0).toUpperCase() + type.slice(1)}s
 Description: ${entityDescriptions[type] || type}
@@ -80,6 +90,7 @@ Fields to extract:
 - name: The entity's name (required)
 - shortDescription: 2-3 sentence summary (required)
 ${fields.filter(f => f !== 'shortDescription').map(f => `- ${f}: ${getFieldDescription(f)}`).join('\n')}
+${customFieldsStr ? `Custom fields:\n${customFieldsStr}` : ''}
 Relations (use entity IDs):
 ${relations.map(r => `- ${r}: Array of IDs of related entities`).join('\n')}`;
     }).join('\n\n');
@@ -205,6 +216,12 @@ Respond with ONLY valid JSON in this exact format:
         if (field !== 'shortDescription' && field !== 'longDescription') {
           cleaned[field] = entity[field] || '';
         }
+      });
+
+      // Add custom attributes
+      const custom = customAttributes[type] || [];
+      custom.forEach((attr: any) => {
+        cleaned[attr.key] = entity[attr.key] || '';
       });
 
       // Add relation fields

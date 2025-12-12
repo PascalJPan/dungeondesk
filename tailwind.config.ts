@@ -14,7 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Crimson Pro', 'Georgia', 'serif'],
+        serif: ['Crimson Pro', 'Georgia', 'serif'],
+        display: ['IM Fell English', 'Georgia', 'serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
