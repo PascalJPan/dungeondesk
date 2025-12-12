@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS } from '@/types/mindmap';
+import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS } from '@/types/mindmap';
+import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
@@ -25,15 +26,39 @@ ${attrs}
   }`;
   }).join(',\n\n');
 
-  const missingDataGuidance = promptSettings.inferMissing
-    ? `When information is missing or unclear:
-- Infer details to the best of your knowledge based on context
-- Fabricate plausible details that fit the setting if truly unknown
-- Make educated guesses that align with the ${promptSettings.tone} tone`
-    : `When information is missing or unclear:
+  const getInferGuidance = (level: number): string => {
+    switch (level) {
+      case 1:
+        return `When information is missing or unclear:
 - Leave fields as "" (empty) if truly unknown
 - Do NOT write "Unknown", "N/A", or placeholder text
 - Empty means the DM should fill this in later`;
+      case 2:
+        return `When information is missing or unclear:
+- Leave most fields empty if unknown
+- Only infer very obvious details that are strongly implied by context
+- Prefer empty over guessing`;
+      case 3:
+        return `When information is missing or unclear:
+- Make reasonable inferences when context provides good hints
+- Leave empty if no clear context clues exist
+- Balance between empty fields and educated guesses`;
+      case 4:
+        return `When information is missing or unclear:
+- Infer details based on context and setting conventions
+- Only leave empty if absolutely no basis for inference
+- Make educated guesses that fit the ${promptSettings.tone} tone`;
+      case 5:
+        return `When information is missing or unclear:
+- Always fill in details, inferring or fabricating as needed
+- Make creative additions that fit the ${promptSettings.tone} setting
+- Never leave fields empty - invent plausible content`;
+      default:
+        return '';
+    }
+  };
+
+  const missingDataGuidance = getInferGuidance(promptSettings.inferLevel);
 
   return `You are helping create a D&D/TTRPG campaign. Generate entities in the following JSON format.
 
@@ -596,19 +621,23 @@ export function InputPanel({
                   />
                 </div>
                 
-                {/* Missing Info Handling */}
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="inferMissing"
-                    checked={promptSettings.inferMissing}
-                    onCheckedChange={(checked) => setPromptSettings(prev => ({ ...prev, inferMissing: checked === true }))}
+                {/* Missing Info Handling - Slider */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                    Infer Missing Info: {INFER_LEVEL_LABELS[promptSettings.inferLevel]}
+                  </Label>
+                  <Slider
+                    value={[promptSettings.inferLevel]}
+                    onValueChange={(value) => setPromptSettings(prev => ({ ...prev, inferLevel: value[0] }))}
+                    min={1}
+                    max={5}
+                    step={1}
+                    className="w-full"
                   />
-                  <label
-                    htmlFor="inferMissing"
-                    className="text-sm font-serif text-muted-foreground cursor-pointer"
-                  >
-                    Infer/fabricate missing info (otherwise leave empty)
-                  </label>
+                  <div className="flex justify-between text-xs text-muted-foreground font-serif">
+                    <span>Never</span>
+                    <span>Always</span>
+                  </div>
                 </div>
               </div>
 
