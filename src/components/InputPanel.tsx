@@ -9,11 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity } from '@/types/mindmap';
+import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
-function generateExternalPrompt(entityTypes: EntityTypeDef[]): string {
+function generateExternalPrompt(entityTypes: EntityTypeDef[], promptSettings: PromptSettings): string {
   const entitySchemas = entityTypes.map(type => {
     const attrs = type.attributes.map(attr => `    "${attr.key}": "string" // ${attr.label}`).join(',\n');
     return `  // ${type.label}
@@ -25,7 +25,21 @@ ${attrs}
   }`;
   }).join(',\n\n');
 
+  const missingDataGuidance = promptSettings.inferMissing
+    ? `When information is missing or unclear:
+- Infer details to the best of your knowledge based on context
+- Fabricate plausible details that fit the setting if truly unknown
+- Make educated guesses that align with the ${promptSettings.tone} tone`
+    : `When information is missing or unclear:
+- Leave fields as "" (empty) if truly unknown
+- Do NOT write "Unknown", "N/A", or placeholder text
+- Empty means the DM should fill this in later`;
+
   return `You are helping create a D&D/TTRPG campaign. Generate entities in the following JSON format.
+
+## Content Settings:
+- **Language**: Generate all content in ${promptSettings.contentLanguage}
+- **Tone/Setting**: ${promptSettings.tone}
 
 IMPORTANT: Output ONLY valid JSON, no explanations.
 
@@ -62,6 +76,27 @@ Examples:
 - "Bite: 2W6+4, Claw: 1W8+2, Tail Sweep: 1W10"
 - "Crossbow: 1W10+1"
 Use German "W" notation (1W6 = 1d6). Multiple attacks separated by comma.
+
+## Stat Formats:
+- "healthPoints": Number only (e.g., "45", "120")
+- "armorClass": Number only (e.g., "15", "18")
+- "speed": Number in feet (e.g., "30", "40")
+
+## Relationship Format:
+For "relationships" attribute, list ONLY the names of related entities as comma-separated string.
+Example: "Lord Blackwood, Queen Elara, The Merchant Guild"
+
+## Naming Consistency:
+When referencing the same entity, ALWAYS use the exact same name throughout.
+"Lord Blackwood", "Blackwood", and "the Lord" should all be unified to ONE consistent name.
+
+## Long Descriptions:
+For long description fields (longDescription, background, etc.):
+- Use line breaks between paragraphs for readability
+- Separate distinct topics or sections with blank lines
+
+## Handling Missing Information:
+${missingDataGuidance}
 
 ## Important Rules:
 - Each entity MUST have a unique id: "type-number" (e.g., "character-1", "location-2")
@@ -108,6 +143,7 @@ export function InputPanel({
   const [keepAllEntities, setKeepAllEntities] = useState(true);
   const [deleteWarning, setDeleteWarning] = useState<DeleteWarning | null>(null);
   const [jsonInput, setJsonInput] = useState('');
+  const [promptSettings, setPromptSettings] = useState<PromptSettings>(DEFAULT_PROMPT_SETTINGS);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
@@ -529,12 +565,58 @@ export function InputPanel({
               Add Entity Type
             </Button>
 
-            <div className="pt-4 border-t border-border mt-4">
+            <div className="pt-4 border-t border-border mt-4 space-y-4">
+              {/* Prompt Settings */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-display text-foreground">Prompt Settings</h3>
+                
+                {/* Content Language */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                    Content Language
+                  </Label>
+                  <Input
+                    value={promptSettings.contentLanguage}
+                    onChange={(e) => setPromptSettings(prev => ({ ...prev, contentLanguage: e.target.value }))}
+                    className="h-8 text-sm font-serif"
+                    placeholder="English, German, etc."
+                  />
+                </div>
+                
+                {/* Tone */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                    Tone / Setting
+                  </Label>
+                  <Input
+                    value={promptSettings.tone}
+                    onChange={(e) => setPromptSettings(prev => ({ ...prev, tone: e.target.value }))}
+                    className="h-8 text-sm font-serif"
+                    placeholder="High Fantasy, Dark Fantasy, etc."
+                  />
+                </div>
+                
+                {/* Missing Info Handling */}
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="inferMissing"
+                    checked={promptSettings.inferMissing}
+                    onCheckedChange={(checked) => setPromptSettings(prev => ({ ...prev, inferMissing: checked === true }))}
+                  />
+                  <label
+                    htmlFor="inferMissing"
+                    className="text-sm font-serif text-muted-foreground cursor-pointer"
+                  >
+                    Infer/fabricate missing info (otherwise leave empty)
+                  </label>
+                </div>
+              </div>
+
               <Button
                 variant="outline"
                 className="w-full font-serif"
                 onClick={() => {
-                  const prompt = generateExternalPrompt(entityTypes);
+                  const prompt = generateExternalPrompt(entityTypes, promptSettings);
                   navigator.clipboard.writeText(prompt);
                   toast({
                     title: "Prompt copied",
