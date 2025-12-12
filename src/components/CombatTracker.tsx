@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Sword, Shield, Heart, Footprints, Droplets, Plus, Minus, RotateCcw } from 'lucide-react';
+import { Sword, Shield, Heart, Footprints, Plus, Minus, RotateCcw, UserPlus, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   CampaignData, 
   CampaignEntity, 
@@ -17,6 +19,7 @@ interface CombatTrackerProps {
   entityTypes: EntityTypeDef[];
   onEntitySelect: (entity: CampaignEntity | null) => void;
   selectedEntityId: string | null;
+  autoAddCharacters?: boolean;
 }
 
 interface CombatantState {
@@ -24,14 +27,31 @@ interface CombatantState {
   initiative: number;
 }
 
-export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntityId }: CombatTrackerProps) {
+export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntityId, autoAddCharacters = true }: CombatTrackerProps) {
   const [combatants, setCombatants] = useState<Record<string, CombatantState>>({});
+  const [activeCombatantIds, setActiveCombatantIds] = useState<Set<string>>(new Set());
   const [round, setRound] = useState(1);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   // Get entities that have combat stats (monsters and characters)
-  const combatEntities = data?.entities.filter(
+  const allCombatEntities = data?.entities.filter(
     e => e.type === 'monster' || e.type === 'character'
   ) || [];
+
+  // Initialize with characters if autoAddCharacters is enabled
+  React.useEffect(() => {
+    if (!initialized && autoAddCharacters && data) {
+      const characterIds = data.entities
+        .filter(e => e.type === 'character')
+        .map(e => e.id);
+      setActiveCombatantIds(new Set(characterIds));
+      setInitialized(true);
+    }
+  }, [data, autoAddCharacters, initialized]);
+
+  // Only show entities that are in active combat
+  const combatEntities = allCombatEntities.filter(e => activeCombatantIds.has(e.id));
 
   const getCombatantState = (entity: CampaignEntity): CombatantState => {
     if (combatants[entity.id]) return combatants[entity.id];
@@ -56,7 +76,30 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
   const resetCombat = () => {
     setCombatants({});
     setRound(1);
+    // Keep only characters if autoAddCharacters is enabled
+    if (autoAddCharacters && data) {
+      const characterIds = data.entities
+        .filter(e => e.type === 'character')
+        .map(e => e.id);
+      setActiveCombatantIds(new Set(characterIds));
+    } else {
+      setActiveCombatantIds(new Set());
+    }
   };
+
+  const addToCombat = (entityId: string) => {
+    setActiveCombatantIds(prev => new Set([...prev, entityId]));
+  };
+
+  const removeFromCombat = (entityId: string) => {
+    setActiveCombatantIds(prev => {
+      const next = new Set(prev);
+      next.delete(entityId);
+      return next;
+    });
+  };
+
+  const availableToAdd = allCombatEntities.filter(e => !activeCombatantIds.has(e.id));
 
   // Sort by initiative
   const sortedCombatants = [...combatEntities].sort((a, b) => {
@@ -65,7 +108,7 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
     return initB - initA;
   });
 
-  if (!data || combatEntities.length === 0) {
+  if (!data || allCombatEntities.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
         <Sword className="w-12 h-12 mb-4 opacity-50" />
@@ -85,6 +128,61 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
           <span className="font-display text-lg">Combat Tracker</span>
         </div>
         <div className="flex items-center gap-2">
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <UserPlus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="font-display">Add to Combat</DialogTitle>
+              </DialogHeader>
+              <ScrollArea className="max-h-80">
+                <div className="space-y-2 pr-4">
+                  {availableToAdd.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4 font-serif">
+                      All characters and monsters are in combat
+                    </p>
+                  ) : (
+                    availableToAdd.map(entity => {
+                      const color = getEntityColor(entityTypes, entity.type);
+                      return (
+                        <div 
+                          key={entity.id}
+                          className="flex items-center justify-between p-2 rounded-lg border border-border hover:bg-muted/50"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span 
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="font-serif">{entity.name}</span>
+                            <Badge 
+                              variant="outline"
+                              className="text-[10px]"
+                            >
+                              {entity.type}
+                            </Badge>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => {
+                              addToCombat(entity.id);
+                            }}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
           <Badge variant="outline" className="font-mono">
             Round {round}
           </Badge>
@@ -99,6 +197,12 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
 
       {/* Combat List */}
       <ScrollArea className="flex-1">
+        {combatEntities.length === 0 ? (
+          <div className="p-6 text-center text-muted-foreground">
+            <p className="font-serif text-sm">No combatants added yet</p>
+            <p className="text-xs mt-1">Click "Add" to add monsters or characters</p>
+          </div>
+        ) : (
         <div className="p-4 space-y-3">
           {sortedCombatants.map(entity => {
             const color = getEntityColor(entityTypes, entity.type);
@@ -108,7 +212,6 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
             const isSelected = entity.id === selectedEntityId;
             const ac = entity.armorClass || '—';
             const speed = entity.speed || '—';
-            const speedWater = entity.speedWater || '—';
 
             return (
               <Card 
@@ -131,15 +234,29 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
                         {entity.type}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground font-mono">Init:</span>
-                      <Input
-                        type="number"
-                        value={state.initiative}
-                        onChange={(e) => updateCombatant(entity.id, { initiative: parseInt(e.target.value) || 0 })}
-                        className="w-14 h-7 text-center font-mono text-sm"
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground font-mono">Init:</span>
+                        <Input
+                          type="number"
+                          value={state.initiative}
+                          onChange={(e) => updateCombatant(entity.id, { initiative: parseInt(e.target.value) || 0 })}
+                          className="w-14 h-7 text-center font-mono text-sm"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFromCombat(entity.id);
+                        }}
+                        title="Remove from combat"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -153,10 +270,6 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
                     <div className="flex items-center gap-1" title="Speed">
                       <Footprints className="w-4 h-4 text-muted-foreground" />
                       <span className="font-mono">{speed}</span>
-                    </div>
-                    <div className="flex items-center gap-1" title="Speed (Water)">
-                      <Droplets className="w-4 h-4 text-muted-foreground" />
-                      <span className="font-mono">{speedWater}</span>
                     </div>
                   </div>
 
@@ -227,6 +340,7 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
             );
           })}
         </div>
+        )}
       </ScrollArea>
     </div>
   );

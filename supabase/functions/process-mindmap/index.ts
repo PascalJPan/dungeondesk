@@ -31,7 +31,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text, extractionOptions } = await req.json();
+    const { text, extractionOptions, existingEntities, keepExisting } = await req.json();
     
     if (!text || typeof text !== 'string' || text.length < 50) {
       return new Response(
@@ -49,7 +49,14 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Processing text (${text.length} chars) for entity types: ${entityTypes.map(t => t.key).join(', ')}`);
+    // Build context from existing entities if keepExisting is true
+    let existingContext = '';
+    if (keepExisting && existingEntities && Array.isArray(existingEntities) && existingEntities.length > 0) {
+      existingContext = `\n\nEXISTING CAMPAIGN CONTEXT (add new info to these entities or create new ones - DO NOT duplicate existing entities):
+${JSON.stringify(existingEntities.map((e: any) => ({ id: e.id, type: e.type, name: e.name })), null, 2)}`;
+    }
+
+    console.log(`Processing text (${text.length} chars) for entity types: ${entityTypes.map(t => t.key).join(', ')}. Existing entities: ${existingEntities?.length || 0}`);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -81,6 +88,7 @@ ${attributeList}`;
 
 TEXT TO ANALYZE:
 ${processedText}
+${existingContext}
 
 ENTITY TYPES TO EXTRACT:
 ${typeInstructions}
@@ -91,11 +99,12 @@ IMPORTANT RULES:
 3. Leave fields empty ("") if information is not provided in the text
 4. Do NOT invent information - only extract what's in the text
 5. Each attribute value should be text (string)
-6. For combat stats (healthPoints, armorClass, speed, speedWater), extract as strings (e.g., "45", "16", "30ft", "40ft")
+6. For combat stats (healthPoints, armorClass, speed), extract as strings (e.g., "45", "16", "30ft")
 7. For attacks, format as multi-line text like:
    "Attack Name
    - +X to hit
    - XdX + X damage type"
+8. If EXISTING CAMPAIGN CONTEXT is provided, try to match entity names to add info to existing entities rather than creating duplicates
 
 Respond with ONLY valid JSON in this exact format:
 {

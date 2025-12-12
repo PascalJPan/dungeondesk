@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid, Sword } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid, Sword, Network } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
 import { EntityEditor } from '@/components/EntityEditor';
 import { EntityReader } from '@/components/EntityReader';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { CampaignGraph } from '@/components/CampaignGraph';
+import { NodeGraph } from '@/components/NodeGraph';
 import { CombatTracker } from '@/components/CombatTracker';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,7 +27,7 @@ export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [activeRightTab, setActiveRightTab] = useState<'read' | 'edit' | 'questions'>('read');
-  const [viewMode, setViewMode] = useState<'graph' | 'list' | 'combat'>('graph');
+  const [viewMode, setViewMode] = useState<'graph' | 'list' | 'combat' | 'nodes'>('graph');
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
@@ -96,6 +97,8 @@ export default function Index() {
         message: 'Finding entities in text...',
       });
 
+      const existingEntities = campaignData?.entities || [];
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-mindmap`, {
         method: 'POST',
         headers: {
@@ -105,6 +108,8 @@ export default function Index() {
         body: JSON.stringify({ 
           text,
           extractionOptions,
+          existingEntities: keepExisting ? existingEntities : [],
+          keepExisting,
         }),
       });
 
@@ -122,7 +127,6 @@ export default function Index() {
       const result = await response.json();
       const processingTime = Date.now() - startTime;
 
-      const existingEntities = campaignData?.entities || [];
       const finalEntities = keepExisting 
         ? mergeEntities(existingEntities, result.entities)
         : result.entities;
@@ -370,6 +374,15 @@ export default function Index() {
             <Sword className="w-4 h-4 mr-1" />
             Combat
           </Button>
+          <Button
+            variant={viewMode === 'nodes' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('nodes')}
+            className="font-serif"
+          >
+            <Network className="w-4 h-4 mr-1" />
+            Nodes
+          </Button>
         </div>
       </header>
 
@@ -427,8 +440,15 @@ export default function Index() {
               onSelectEntity={handleEntitySelect}
               onAddEntity={handleAddEntity}
             />
-          ) : (
+          ) : viewMode === 'combat' ? (
             <CombatTracker
+              data={campaignData}
+              entityTypes={entityTypes}
+              onEntitySelect={handleEntitySelect}
+              selectedEntityId={selectedEntity?.id || null}
+            />
+          ) : (
+            <NodeGraph
               data={campaignData}
               entityTypes={entityTypes}
               onEntitySelect={handleEntitySelect}
