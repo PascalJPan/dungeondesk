@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid, Download } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
 import { EntityEditor } from '@/components/EntityEditor';
@@ -13,10 +13,10 @@ import {
   CampaignEntity, 
   ProcessingState, 
   ExtractionOptions,
-  EntityType,
+  EntityTypeDef,
   createEmptyEntity,
   CampaignExport,
-  CustomAttribute,
+  DEFAULT_ENTITY_TYPES,
 } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -29,7 +29,7 @@ export default function Index() {
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
-  const [customAttributes, setCustomAttributes] = useState<Record<EntityType, CustomAttribute[]> | null>(null);
+  const [entityTypes, setEntityTypes] = useState<EntityTypeDef[]>(DEFAULT_ENTITY_TYPES);
   
   const [processingState, setProcessingState] = useState<ProcessingState>({
     status: 'idle',
@@ -42,11 +42,6 @@ export default function Index() {
     extractionOptions: ExtractionOptions
   ) => {
     const startTime = Date.now();
-    
-    // Store custom attributes for later use
-    if (extractionOptions.customAttributes) {
-      setCustomAttributes(extractionOptions.customAttributes);
-    }
     
     try {
       setProcessingState({
@@ -113,8 +108,8 @@ export default function Index() {
       entities: data.entities,
       processingTime: 0,
     });
-    if (data.customAttributes) {
-      setCustomAttributes(data.customAttributes);
+    if (data.entityTypes && data.entityTypes.length > 0) {
+      setEntityTypes(data.entityTypes);
     }
     toast({
       title: "Campaign imported",
@@ -128,7 +123,7 @@ export default function Index() {
     const exportData: CampaignExport = {
       version: '1.0',
       exportedAt: new Date().toISOString(),
-      customAttributes: customAttributes || undefined,
+      entityTypes: entityTypes,
       entities: campaignData.entities,
     };
     
@@ -144,7 +139,7 @@ export default function Index() {
       title: "Campaign exported",
       description: "JSON file downloaded",
     });
-  }, [campaignData, customAttributes]);
+  }, [campaignData, entityTypes]);
 
   const handleEntitySelect = useCallback((entity: CampaignEntity | null) => {
     setSelectedEntity(entity);
@@ -175,21 +170,7 @@ export default function Index() {
     setCampaignData(prev => {
       if (!prev) return prev;
       
-      const newEntities = prev.entities
-        .filter(e => e.id !== entityId)
-        .map(entity => {
-          const cleaned = { ...entity };
-          const relationFields = [
-            'associatedLocations', 'associatedCharacters', 'associatedMonsters',
-            'associatedHappenings', 'associatedItems'
-          ];
-          relationFields.forEach(field => {
-            if ((cleaned as any)[field]) {
-              (cleaned as any)[field] = (cleaned as any)[field].filter((id: string) => id !== entityId);
-            }
-          });
-          return cleaned as CampaignEntity;
-        });
+      const newEntities = prev.entities.filter(e => e.id !== entityId);
       
       return { ...prev, entities: newEntities };
     });
@@ -199,9 +180,9 @@ export default function Index() {
     });
   }, []);
 
-  const handleAddEntity = useCallback((type: EntityType) => {
-    const id = `${type}-${Date.now()}`;
-    const newEntity = createEmptyEntity(type, id, `New ${type}`);
+  const handleAddEntity = useCallback((typeDef: EntityTypeDef) => {
+    const id = `${typeDef.key}-${Date.now()}`;
+    const newEntity = createEmptyEntity(typeDef, id, `New ${typeDef.label.slice(0, -1)}`);
     
     setCampaignData(prev => {
       if (!prev) {
@@ -274,6 +255,8 @@ export default function Index() {
               onExport={handleExport}
               processingState={processingState}
               hasData={!!campaignData}
+              entityTypes={entityTypes}
+              onEntityTypesChange={setEntityTypes}
             />
           )}
         </aside>
@@ -297,12 +280,14 @@ export default function Index() {
           {viewMode === 'graph' ? (
             <CampaignGraph 
               data={campaignData}
+              entityTypes={entityTypes}
               onEntitySelect={handleEntitySelect}
               selectedEntityId={selectedEntity?.id || null}
             />
           ) : (
             <EntityList
               data={campaignData}
+              entityTypes={entityTypes}
               selectedEntityId={selectedEntity?.id || null}
               onSelectEntity={handleEntitySelect}
               onAddEntity={handleAddEntity}
@@ -363,7 +348,7 @@ export default function Index() {
               <TabsContent value="read" className="flex-1 m-0 min-h-0">
                 <EntityReader 
                   entity={selectedEntity}
-                  data={campaignData}
+                  entityTypes={entityTypes}
                   onClose={() => setSelectedEntity(null)}
                 />
               </TabsContent>
@@ -371,6 +356,7 @@ export default function Index() {
                 <EntityEditor 
                   entity={selectedEntity}
                   data={campaignData}
+                  entityTypes={entityTypes}
                   onClose={() => setSelectedEntity(null)}
                   onSave={handleEntitySave}
                   onDelete={handleEntityDelete}
@@ -379,6 +365,7 @@ export default function Index() {
               <TabsContent value="questions" className="flex-1 m-0 min-h-0">
                 <QuestionsPanel 
                   data={campaignData}
+                  entityTypes={entityTypes}
                   onSelectField={handleSelectField}
                 />
               </TabsContent>

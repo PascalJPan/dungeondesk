@@ -3,24 +3,25 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CampaignData, CampaignEntity, EntityType, ENTITY_TYPE_INFO } from '@/types/mindmap';
+import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 
 interface EntityListProps {
   data: CampaignData | null;
+  entityTypes: EntityTypeDef[];
   selectedEntityId: string | null;
   onSelectEntity: (entity: CampaignEntity | null) => void;
-  onAddEntity?: (type: EntityType) => void;
+  onAddEntity?: (typeDef: EntityTypeDef) => void;
 }
 
-export function EntityList({ data, selectedEntityId, onSelectEntity, onAddEntity }: EntityListProps) {
-  const [openSections, setOpenSections] = React.useState<EntityType[]>(['location', 'happening', 'character', 'monster', 'item']);
+export function EntityList({ data, entityTypes, selectedEntityId, onSelectEntity, onAddEntity }: EntityListProps) {
+  const [openSections, setOpenSections] = React.useState<string[]>(entityTypes.map(t => t.key));
 
-  const toggleSection = (type: EntityType) => {
+  const toggleSection = (key: string) => {
     setOpenSections(prev => 
-      prev.includes(type) 
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
+      prev.includes(key) 
+        ? prev.filter(k => k !== key)
+        : [...prev, key]
     );
   };
 
@@ -41,33 +42,29 @@ export function EntityList({ data, selectedEntityId, onSelectEntity, onAddEntity
   }
 
   // Group entities by type
-  const entityGroups: Record<EntityType, CampaignEntity[]> = {
-    location: [],
-    happening: [],
-    character: [],
-    monster: [],
-    item: [],
-  };
-
-  data.entities.forEach(entity => {
-    entityGroups[entity.type].push(entity);
+  const entityGroups: Record<string, CampaignEntity[]> = {};
+  entityTypes.forEach(t => {
+    entityGroups[t.key] = [];
   });
 
-  const entityTypes: EntityType[] = ['location', 'happening', 'character', 'monster', 'item'];
+  data.entities.forEach(entity => {
+    if (entityGroups[entity.type]) {
+      entityGroups[entity.type].push(entity);
+    }
+  });
 
   return (
     <ScrollArea className="h-full">
       <div className="p-2 space-y-1">
-        {entityTypes.map(type => {
-          const entities = entityGroups[type];
-          const typeInfo = ENTITY_TYPE_INFO[type];
-          const isOpen = openSections.includes(type);
+        {entityTypes.map(typeDef => {
+          const entities = entityGroups[typeDef.key] || [];
+          const isOpen = openSections.includes(typeDef.key);
 
           return (
             <Collapsible 
-              key={type} 
+              key={typeDef.key} 
               open={isOpen}
-              onOpenChange={() => toggleSection(type)}
+              onOpenChange={() => toggleSection(typeDef.key)}
             >
               <CollapsibleTrigger className="w-full">
                 <div 
@@ -79,9 +76,9 @@ export function EntityList({ data, selectedEntityId, onSelectEntity, onAddEntity
                   <div className="flex items-center gap-2">
                     <span 
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: typeInfo.color }}
+                      style={{ backgroundColor: typeDef.color }}
                     />
-                    <span className="font-medium text-sm font-serif">{typeInfo.label}</span>
+                    <span className="font-medium text-sm font-serif">{typeDef.label}</span>
                     <span className="text-xs text-muted-foreground">({entities.length})</span>
                   </div>
                   <ChevronDown className={cn(
@@ -113,10 +110,10 @@ export function EntityList({ data, selectedEntityId, onSelectEntity, onAddEntity
                       variant="ghost"
                       size="sm"
                       className="w-full justify-start text-muted-foreground hover:text-foreground font-serif"
-                      onClick={() => onAddEntity(type)}
+                      onClick={() => onAddEntity(typeDef)}
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Add {typeInfo.label.slice(0, -1)}
+                      Add {typeDef.label.endsWith('s') ? typeDef.label.slice(0, -1) : typeDef.label}
                     </Button>
                   )}
                 </div>

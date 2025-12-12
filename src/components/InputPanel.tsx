@@ -1,13 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown } from 'lucide-react';
+import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ProcessingState, ExtractionOptions, EntityType, ENTITY_TYPE_INFO, ENTITY_FIELDS, CustomAttribute, CampaignExport } from '@/types/mindmap';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 
 interface InputPanelProps {
@@ -16,67 +16,98 @@ interface InputPanelProps {
   onExport: () => void;
   processingState: ProcessingState;
   hasData: boolean;
+  entityTypes: EntityTypeDef[];
+  onEntityTypesChange: (types: EntityTypeDef[]) => void;
 }
 
-const ALL_ENTITY_TYPES: EntityType[] = ['location', 'happening', 'character', 'monster', 'item'];
-
-export function InputPanel({ onProcess, onImport, onExport, processingState, hasData }: InputPanelProps) {
+export function InputPanel({ 
+  onProcess, 
+  onImport, 
+  onExport, 
+  processingState, 
+  hasData,
+  entityTypes,
+  onEntityTypesChange,
+}: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
-  const [selectedEntityTypes, setSelectedEntityTypes] = useState<EntityType[]>(['location', 'happening', 'character', 'monster', 'item']);
-  const [customAttributes, setCustomAttributes] = useState<Record<EntityType, CustomAttribute[]>>({
-    location: [],
-    happening: [],
-    character: [],
-    monster: [],
-    item: [],
-  });
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [openEntityTypes, setOpenEntityTypes] = useState<EntityType[]>([]);
+  const [openEntityTypes, setOpenEntityTypes] = useState<string[]>([]);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
-  const handleEntityTypeToggle = (type: EntityType, checked: boolean) => {
-    if (checked) {
-      setSelectedEntityTypes(prev => [...prev, type]);
-    } else {
-      setSelectedEntityTypes(prev => prev.filter(t => t !== type));
-    }
-  };
-
-  const toggleEntityTypeOpen = (type: EntityType) => {
+  const toggleEntityTypeOpen = (key: string) => {
     setOpenEntityTypes(prev => 
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     );
   };
 
-  const handleAddAttribute = (type: EntityType) => {
-    const newAttr: CustomAttribute = {
-      key: `custom_${Date.now()}`,
-      label: '',
-      type: 'text',
+  const handleAddEntityType = () => {
+    const usedColors = entityTypes.map(t => t.color);
+    const availableColor = COLOR_PALETTE.find(c => !usedColors.includes(c)) || COLOR_PALETTE[entityTypes.length % COLOR_PALETTE.length];
+    
+    const newType: EntityTypeDef = {
+      key: `type_${Date.now()}`,
+      label: 'New Type',
+      color: availableColor,
+      attributes: [
+        { key: 'shortDescription', label: 'Short Description' },
+      ],
     };
-    setCustomAttributes(prev => ({
-      ...prev,
-      [type]: [...prev[type], newAttr],
-    }));
+    onEntityTypesChange([...entityTypes, newType]);
+    setOpenEntityTypes(prev => [...prev, newType.key]);
   };
 
-  const handleUpdateAttribute = (type: EntityType, index: number, label: string) => {
-    setCustomAttributes(prev => ({
-      ...prev,
-      [type]: prev[type].map((attr, i) => 
-        i === index ? { ...attr, label, key: `custom_${label.toLowerCase().replace(/\s+/g, '_')}` } : attr
+  const handleRemoveEntityType = (key: string) => {
+    onEntityTypesChange(entityTypes.filter(t => t.key !== key));
+  };
+
+  const handleUpdateEntityType = (key: string, updates: Partial<EntityTypeDef>) => {
+    onEntityTypesChange(entityTypes.map(t => 
+      t.key === key ? { ...t, ...updates } : t
+    ));
+  };
+
+  const handleUpdateEntityTypeKey = (oldKey: string, newLabel: string) => {
+    const newKey = newLabel.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    onEntityTypesChange(entityTypes.map(t => 
+      t.key === oldKey ? { ...t, key: newKey || oldKey, label: newLabel } : t
+    ));
+  };
+
+  const handleAddAttribute = (typeKey: string) => {
+    const typeDef = entityTypes.find(t => t.key === typeKey);
+    if (!typeDef) return;
+    
+    const newAttr: AttributeDef = {
+      key: `attr_${Date.now()}`,
+      label: '',
+    };
+    handleUpdateEntityType(typeKey, {
+      attributes: [...typeDef.attributes, newAttr],
+    });
+  };
+
+  const handleUpdateAttribute = (typeKey: string, attrIndex: number, label: string) => {
+    const typeDef = entityTypes.find(t => t.key === typeKey);
+    if (!typeDef) return;
+    
+    const newKey = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    handleUpdateEntityType(typeKey, {
+      attributes: typeDef.attributes.map((attr, i) => 
+        i === attrIndex ? { ...attr, key: newKey || attr.key, label } : attr
       ),
-    }));
+    });
   };
 
-  const handleRemoveAttribute = (type: EntityType, index: number) => {
-    setCustomAttributes(prev => ({
-      ...prev,
-      [type]: prev[type].filter((_, i) => i !== index),
-    }));
+  const handleRemoveAttribute = (typeKey: string, attrIndex: number) => {
+    const typeDef = entityTypes.find(t => t.key === typeKey);
+    if (!typeDef) return;
+    
+    handleUpdateEntityType(typeKey, {
+      attributes: typeDef.attributes.filter((_, i) => i !== attrIndex),
+    });
   };
 
   const handleFileUpload = useCallback(async (file: File) => {
@@ -153,34 +184,21 @@ export function InputPanel({ onProcess, onImport, onExport, processingState, has
   }, [handleFileUpload]);
 
   const handleGenerate = () => {
-    if (!inputText.trim() || selectedEntityTypes.length === 0) return;
-    
-    const filteredCustomAttributes: Record<EntityType, CustomAttribute[]> = {} as any;
-    for (const type of ALL_ENTITY_TYPES) {
-      filteredCustomAttributes[type] = customAttributes[type].filter(a => a.label.trim());
-    }
+    if (!inputText.trim() || entityTypes.length === 0) return;
     
     const extractionOptions: ExtractionOptions = {
-      entityTypes: selectedEntityTypes,
-      customAttributes: filteredCustomAttributes,
+      entityTypes: entityTypes,
     };
     
     onProcess(inputText, extractionOptions);
   };
 
-  const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && selectedEntityTypes.length > 0;
+  const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && entityTypes.length > 0;
 
   return (
     <div className="flex flex-col h-full">
-      <Tabs defaultValue="input" className="flex flex-col h-full">
+      <Tabs defaultValue="settings" className="flex flex-col h-full">
         <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent p-0 h-auto shrink-0">
-          <TabsTrigger 
-            value="input"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
-          >
-            <FileText className="w-4 h-4 mr-1" />
-            Input
-          </TabsTrigger>
           <TabsTrigger 
             value="settings"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
@@ -188,7 +206,152 @@ export function InputPanel({ onProcess, onImport, onExport, processingState, has
             <Settings className="w-4 h-4 mr-1" />
             Settings
           </TabsTrigger>
+          <TabsTrigger 
+            value="input"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
+          >
+            <FileText className="w-4 h-4 mr-1" />
+            Input
+          </TabsTrigger>
         </TabsList>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
+          <div className="p-4 space-y-2 ink-texture">
+            <div className="space-y-1 mb-4">
+              <h2 className="text-lg font-display text-foreground">Entity Types</h2>
+              <p className="text-sm text-muted-foreground font-serif">
+                Configure entity types and their attributes
+              </p>
+            </div>
+
+            {entityTypes.map((typeDef) => {
+              const isOpen = openEntityTypes.includes(typeDef.key);
+
+              return (
+                <Collapsible 
+                  key={typeDef.key} 
+                  open={isOpen}
+                  onOpenChange={() => toggleEntityTypeOpen(typeDef.key)}
+                  className="border border-border rounded-lg overflow-hidden"
+                >
+                  <CollapsibleTrigger className="w-full">
+                    <div className={cn(
+                      "flex items-center justify-between p-3 hover:bg-muted/30 transition-colors",
+                      isOpen && "bg-muted/20"
+                    )}>
+                      <div className="flex items-center gap-3">
+                        <Popover>
+                          <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              className="w-4 h-4 rounded-full border border-border/50 hover:scale-110 transition-transform"
+                              style={{ backgroundColor: typeDef.color }}
+                            />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2 bg-popover" align="start">
+                            <div className="grid grid-cols-5 gap-1">
+                              {COLOR_PALETTE.map((color) => (
+                                <button
+                                  key={color}
+                                  className={cn(
+                                    "w-6 h-6 rounded-full border-2 hover:scale-110 transition-transform",
+                                    typeDef.color === color ? "border-foreground" : "border-transparent"
+                                  )}
+                                  style={{ backgroundColor: color }}
+                                  onClick={() => handleUpdateEntityType(typeDef.key, { color })}
+                                />
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        <span className="font-serif font-medium">{typeDef.label}</span>
+                        <span className="text-xs text-muted-foreground">({typeDef.attributes.length} attrs)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveEntityType(typeDef.key);
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                        <ChevronDown className={cn(
+                          "w-4 h-4 text-muted-foreground transition-transform",
+                          isOpen && "rotate-180"
+                        )} />
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-3 pb-3 pt-1 border-t border-border/50 space-y-3">
+                      {/* Entity Type Name */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                          Type Name
+                        </Label>
+                        <Input
+                          value={typeDef.label}
+                          onChange={(e) => handleUpdateEntityTypeKey(typeDef.key, e.target.value)}
+                          className="h-8 text-sm font-serif"
+                          placeholder="Entity type name"
+                        />
+                      </div>
+
+                      {/* Attributes */}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                          Attributes
+                        </Label>
+                        <div className="space-y-2">
+                          {typeDef.attributes.map((attr, idx) => (
+                            <div key={idx} className="flex gap-2">
+                              <Input
+                                value={attr.label}
+                                onChange={(e) => handleUpdateAttribute(typeDef.key, idx, e.target.value)}
+                                placeholder="Attribute name"
+                                className="h-8 text-sm font-serif"
+                              />
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 px-2 shrink-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleRemoveAttribute(typeDef.key, idx)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full font-serif text-muted-foreground"
+                            onClick={() => handleAddAttribute(typeDef.key)}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Attribute
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+
+            <Button
+              variant="outline"
+              className="w-full font-serif"
+              onClick={handleAddEntityType}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Entity Type
+            </Button>
+          </div>
+        </TabsContent>
 
         {/* Input Tab */}
         <TabsContent value="input" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
@@ -317,115 +480,6 @@ export function InputPanel({ onProcess, onImport, onExport, processingState, has
                 <p className="text-sm text-destructive font-serif">{processingState.error}</p>
               </div>
             )}
-          </div>
-        </TabsContent>
-
-        {/* Settings Tab */}
-        <TabsContent value="settings" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
-          <div className="p-4 space-y-2 ink-texture">
-            <div className="space-y-1 mb-4">
-              <h2 className="text-lg font-display text-foreground">Entity Settings</h2>
-              <p className="text-sm text-muted-foreground font-serif">
-                Configure which entity types to extract and their attributes
-              </p>
-            </div>
-
-            {ALL_ENTITY_TYPES.map((type) => {
-              const typeInfo = ENTITY_TYPE_INFO[type];
-              const isSelected = selectedEntityTypes.includes(type);
-              const isOpen = openEntityTypes.includes(type);
-              const defaultFields = ENTITY_FIELDS[type].filter(f => f.type !== 'relations');
-              const customAttrs = customAttributes[type];
-
-              return (
-                <Collapsible 
-                  key={type} 
-                  open={isOpen}
-                  onOpenChange={() => toggleEntityTypeOpen(type)}
-                  className="border border-border rounded-lg overflow-hidden"
-                >
-                  <CollapsibleTrigger className="w-full">
-                    <div className={cn(
-                      "flex items-center justify-between p-3 hover:bg-muted/30 transition-colors",
-                      isOpen && "bg-muted/20"
-                    )}>
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={(checked) => {
-                            handleEntityTypeToggle(type, checked as boolean);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <span 
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: typeInfo.color }}
-                        />
-                        <span className="font-serif font-medium">{typeInfo.label}</span>
-                      </div>
-                      <ChevronDown className={cn(
-                        "w-4 h-4 text-muted-foreground transition-transform",
-                        isOpen && "rotate-180"
-                      )} />
-                    </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="px-3 pb-3 pt-1 border-t border-border/50 space-y-3">
-                      {/* Default Attributes */}
-                      <div className="space-y-1">
-                        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
-                          Default Attributes
-                        </Label>
-                        <div className="space-y-1 pl-2">
-                          {defaultFields.map(field => (
-                            <div key={field.key} className="text-sm text-muted-foreground font-serif flex items-center gap-2">
-                              <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
-                              {field.label}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Custom Attributes */}
-                      <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
-                          Custom Attributes
-                        </Label>
-                        <div className="space-y-2 pl-2">
-                          {customAttrs.map((attr, idx) => (
-                            <div key={idx} className="flex gap-2">
-                              <Input
-                                value={attr.label}
-                                onChange={(e) => handleUpdateAttribute(type, idx, e.target.value)}
-                                placeholder="Attribute name (e.g., ATK)"
-                                className="h-8 text-sm font-serif"
-                              />
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-8 px-2 shrink-0"
-                                onClick={() => handleRemoveAttribute(type, idx)}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full font-serif text-muted-foreground"
-                            onClick={() => handleAddAttribute(type)}
-                          >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Attribute
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              );
-            })}
           </div>
         </TabsContent>
       </Tabs>

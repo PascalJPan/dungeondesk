@@ -5,20 +5,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { 
-  CampaignData, 
   CampaignEntity, 
-  ENTITY_TYPE_INFO, 
-  ENTITY_FIELDS,
-  EntityFieldDef 
+  EntityTypeDef,
+  getEntityColor,
 } from '@/types/mindmap';
 
 interface EntityReaderProps {
   entity: CampaignEntity | null;
-  data: CampaignData | null;
+  entityTypes: EntityTypeDef[];
   onClose: () => void;
 }
 
-export function EntityReader({ entity, data, onClose }: EntityReaderProps) {
+export function EntityReader({ entity, entityTypes, onClose }: EntityReaderProps) {
   if (!entity) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
@@ -30,61 +28,26 @@ export function EntityReader({ entity, data, onClose }: EntityReaderProps) {
     );
   }
 
-  const typeInfo = ENTITY_TYPE_INFO[entity.type];
-  const fields = ENTITY_FIELDS[entity.type];
+  const typeDef = entityTypes.find(t => t.key === entity.type);
+  const color = getEntityColor(entityTypes, entity.type);
 
-  const getRelatedEntities = (field: EntityFieldDef): CampaignEntity[] => {
-    if (!data || !field.relationType) return [];
-    const relationIds = (entity as any)[field.key] || [];
-    return data.entities.filter(e => relationIds.includes(e.id));
-  };
-
-  const renderField = (field: EntityFieldDef) => {
-    if (field.type === 'relations') {
-      const relatedEntities = getRelatedEntities(field);
-      if (relatedEntities.length === 0) return null;
+  const renderedFields = typeDef?.attributes
+    .map(attr => {
+      const value = entity[attr.key];
+      if (!value || (typeof value === 'string' && value.trim() === '')) return null;
 
       return (
-        <div key={field.key} className="space-y-2">
+        <div key={attr.key} className="space-y-1.5">
           <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-            {field.label}
+            {attr.label}
           </h4>
-          <div className="flex flex-wrap gap-1">
-            {relatedEntities.map(relEntity => (
-              <Badge 
-                key={relEntity.id}
-                variant="outline"
-                className="font-serif"
-                style={{ borderColor: ENTITY_TYPE_INFO[relEntity.type].color }}
-              >
-                <span 
-                  className="w-2 h-2 rounded-full mr-1.5"
-                  style={{ backgroundColor: ENTITY_TYPE_INFO[relEntity.type].color }}
-                />
-                {relEntity.name}
-              </Badge>
-            ))}
-          </div>
+          <p className="text-sm font-serif leading-relaxed text-foreground whitespace-pre-wrap">
+            {value}
+          </p>
         </div>
       );
-    }
-
-    const value = (entity as any)[field.key];
-    if (!value || (typeof value === 'string' && value.trim() === '')) return null;
-
-    return (
-      <div key={field.key} className="space-y-1.5">
-        <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-          {field.label}
-        </h4>
-        <p className="text-sm font-serif leading-relaxed text-foreground whitespace-pre-wrap">
-          {value}
-        </p>
-      </div>
-    );
-  };
-
-  const renderedFields = fields.map(field => renderField(field)).filter(Boolean);
+    })
+    .filter(Boolean) || [];
 
   return (
     <div className="h-full flex flex-col">
@@ -95,7 +58,7 @@ export function EntityReader({ entity, data, onClose }: EntityReaderProps) {
             <div className="flex items-center gap-2 mb-2">
               <span 
                 className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: typeInfo.color }}
+                style={{ backgroundColor: color }}
               />
               <h2 className="font-serif font-semibold text-lg text-foreground truncate">
                 {entity.name}
@@ -103,10 +66,10 @@ export function EntityReader({ entity, data, onClose }: EntityReaderProps) {
             </div>
             <Badge 
               variant="outline"
-              style={{ borderColor: typeInfo.color, color: typeInfo.color }}
+              style={{ borderColor: color, color: color }}
               className="text-[10px] font-mono"
             >
-              {typeInfo.label.slice(0, -1)}
+              {typeDef?.label || entity.type}
             </Badge>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="shrink-0">

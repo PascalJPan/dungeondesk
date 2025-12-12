@@ -12,19 +12,18 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { CampaignData, CampaignEntity, EntityType, ENTITY_TYPE_INFO } from '@/types/mindmap';
+import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 
 interface CampaignGraphProps {
   data: CampaignData | null;
+  entityTypes: EntityTypeDef[];
   onEntitySelect: (entity: CampaignEntity | null) => void;
   selectedEntityId: string | null;
 }
 
 // Custom node component
-function EntityNode({ data }: NodeProps<CampaignEntity & { isSelected: boolean }>) {
-  const typeInfo = ENTITY_TYPE_INFO[data.type];
-  
+function EntityNode({ data }: NodeProps<{ entity: CampaignEntity; color: string; isSelected: boolean }>) {
   return (
     <>
       <Handle type="target" position={Position.Top} className="opacity-0" />
@@ -35,9 +34,9 @@ function EntityNode({ data }: NodeProps<CampaignEntity & { isSelected: boolean }
           data.isSelected && "ring-2 ring-foreground ring-offset-2 ring-offset-background scale-105"
         )}
         style={{
-          backgroundColor: typeInfo.color,
+          backgroundColor: data.color,
           borderColor: data.isSelected ? 'white' : 'transparent',
-          boxShadow: `0 4px ${data.isSelected ? 20 : 10}px ${typeInfo.color}40`,
+          boxShadow: `0 4px ${data.isSelected ? 20 : 10}px ${data.color}40`,
         }}
       >
         <span 
@@ -52,7 +51,7 @@ function EntityNode({ data }: NodeProps<CampaignEntity & { isSelected: boolean }
             WebkitBoxOrient: 'vertical',
           }}
         >
-          {data.name}
+          {data.entity.name}
         </span>
       </div>
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
@@ -64,33 +63,36 @@ const nodeTypes = {
   entity: EntityNode,
 };
 
-// Row positions
-const ROW_CONFIG: Record<EntityType, number> = {
-  location: 0,
-  happening: 1,
-  character: 2,
-  monster: 2,
-  item: 3,
-};
-
 const ROW_HEIGHT = 150;
 const ROW_PADDING = 80;
 const NODE_SPACING = 40;
 
 export function CampaignGraph({ 
   data, 
+  entityTypes,
   onEntitySelect,
   selectedEntityId 
 }: CampaignGraphProps) {
-  const { initialNodes, initialEdges } = useMemo(() => {
-    if (!data) return { initialNodes: [], initialEdges: [] };
+  const { initialNodes, initialEdges, rowLabels } = useMemo(() => {
+    if (!data || entityTypes.length === 0) return { initialNodes: [], initialEdges: [], rowLabels: [] };
 
-    // Group entities by row
-    const rowGroups: Record<number, CampaignEntity[]> = { 0: [], 1: [], 2: [], 3: [] };
+    // Create row config based on entity types order
+    const rowConfig: Record<string, number> = {};
+    entityTypes.forEach((type, idx) => {
+      rowConfig[type.key] = idx;
+    });
+
+    // Group entities by type (row)
+    const rowGroups: Record<number, CampaignEntity[]> = {};
+    entityTypes.forEach((_, idx) => {
+      rowGroups[idx] = [];
+    });
     
     data.entities.forEach(entity => {
-      const row = ROW_CONFIG[entity.type];
-      rowGroups[row].push(entity);
+      const row = rowConfig[entity.type];
+      if (row !== undefined) {
+        rowGroups[row].push(entity);
+      }
     });
 
     // Position nodes
@@ -104,12 +106,14 @@ export function CampaignGraph({
       let x = -totalWidth / 2;
       
       rowEntities.forEach(entity => {
+        const color = getEntityColor(entityTypes, entity.type);
         nodes.push({
           id: entity.id,
           type: 'entity',
           position: { x, y },
           data: {
-            ...entity,
+            entity,
+            color,
             isSelected: entity.id === selectedEntityId,
           },
         });
@@ -117,41 +121,14 @@ export function CampaignGraph({
       });
     });
 
-    // Create edges from relations
+    // No automatic edges for now - relations would need to be tracked differently
     const edges: Edge[] = [];
-    const edgeSet = new Set<string>();
 
-    data.entities.forEach(entity => {
-      const relationFields = [
-        'associatedLocations', 'associatedCharacters', 'associatedMonsters',
-        'associatedHappenings', 'associatedItems'
-      ];
+    // Row labels
+    const labels = entityTypes.map(t => t.label);
 
-      relationFields.forEach(fieldKey => {
-        const relations = (entity as any)[fieldKey] as string[] | undefined;
-        if (!relations) return;
-
-        relations.forEach(targetId => {
-          const edgeKey = [entity.id, targetId].sort().join('-');
-          if (edgeSet.has(edgeKey)) return;
-          edgeSet.add(edgeKey);
-
-          edges.push({
-            id: edgeKey,
-            source: entity.id,
-            target: targetId,
-            style: {
-              stroke: 'hsl(var(--muted-foreground))',
-              strokeWidth: 1.5,
-            },
-            type: 'smoothstep',
-          });
-        });
-      });
-    });
-
-    return { initialNodes: nodes, initialEdges: edges };
-  }, [data, selectedEntityId]);
+    return { initialNodes: nodes, initialEdges: edges, rowLabels: labels };
+  }, [data, entityTypes, selectedEntityId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -201,26 +178,13 @@ export function CampaignGraph({
       {/* Row Labels */}
       <div className="absolute left-4 top-0 z-10 flex flex-col pointer-events-none">
         <div className="h-[80px]" />
-        <div className="h-[150px] flex items-center">
-          <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
-            Locations
-          </span>
-        </div>
-        <div className="h-[150px] flex items-center">
-          <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
-            Happenings
-          </span>
-        </div>
-        <div className="h-[150px] flex items-center">
-          <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
-            Characters / Monsters
-          </span>
-        </div>
-        <div className="h-[150px] flex items-center">
-          <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
-            Items
-          </span>
-        </div>
+        {rowLabels.map((label, idx) => (
+          <div key={idx} className="h-[150px] flex items-center">
+            <span className="text-xs font-display text-muted-foreground bg-background/80 px-2 py-1 rounded">
+              {label}
+            </span>
+          </div>
+        ))}
       </div>
       
       <ReactFlow
@@ -240,7 +204,7 @@ export function CampaignGraph({
         <Background color="hsl(var(--border))" gap={20} size={1} />
         <Controls className="!bg-card !border-border" />
         <MiniMap 
-          nodeColor={(node) => ENTITY_TYPE_INFO[node.data?.type as EntityType]?.color || 'hsl(var(--primary))'}
+          nodeColor={(node) => node.data?.color || 'hsl(var(--primary))'}
           maskColor="hsl(var(--background) / 0.8)"
           className="!bg-card"
         />

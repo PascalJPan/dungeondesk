@@ -5,15 +5,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface BaseEntity {
+interface AttributeDef {
+  key: string;
+  label: string;
+}
+
+interface EntityTypeDef {
+  key: string;
+  label: string;
+  color: string;
+  attributes: AttributeDef[];
+}
+
+interface ExtractedEntity {
   id: string;
   type: string;
   name: string;
-  shortDescription: string;
-  longDescription: string;
-}
-
-interface ExtractedEntity extends BaseEntity {
   [key: string]: any;
 }
 
@@ -32,13 +39,16 @@ serve(async (req) => {
       );
     }
 
-    const entityTypes = extractionOptions?.entityTypes || ['location', 'happening', 'character', 'monster', 'item'];
-    const customAttributes = extractionOptions?.customAttributes || {};
-
-    console.log(`Processing text (${text.length} chars) for entity types: ${entityTypes.join(', ')}`);
-    if (Object.keys(customAttributes).length > 0) {
-      console.log('Custom attributes:', JSON.stringify(customAttributes));
+    const entityTypes: EntityTypeDef[] = extractionOptions?.entityTypes || [];
+    
+    if (entityTypes.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'At least one entity type must be configured' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    console.log(`Processing text (${text.length} chars) for entity types: ${entityTypes.map(t => t.key).join(', ')}`);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -48,51 +58,18 @@ serve(async (req) => {
     // Truncate text if too long
     const processedText = text.length > 50000 ? text.substring(0, 50000) : text;
 
-    // Entity field schemas for extraction
-    const entitySchemas: Record<string, string[]> = {
-      location: ['shortDescription', 'longDescription', 'background'],
-      happening: ['shortDescription', 'longDescription', 'potentialStarts', 'potentialOutcomes'],
-      character: ['shortDescription', 'longDescription', 'background', 'motivationsGoals', 'personality'],
-      monster: ['shortDescription', 'longDescription', 'abilities', 'behavior'],
-      item: ['shortDescription', 'longDescription', 'properties', 'history'],
-    };
-
-    const entityDescriptions: Record<string, string> = {
-      location: 'Places, regions, cities, dungeons, buildings, landmarks',
-      happening: 'Events, encounters, plot points, quests, scenes',
-      character: 'NPCs, allies, villains, named individuals (not monsters)',
-      monster: 'Creatures, beasts, enemies, bosses that can be fought',
-      item: 'Magical items, artifacts, weapons, treasures, special objects',
-    };
-
-    const relationFields: Record<string, string[]> = {
-      location: ['associatedCharacters', 'associatedMonsters', 'associatedHappenings', 'associatedItems'],
-      happening: ['associatedLocations', 'associatedCharacters', 'associatedMonsters', 'associatedItems'],
-      character: ['associatedLocations', 'associatedHappenings', 'associatedItems'],
-      monster: ['associatedLocations', 'associatedHappenings', 'associatedItems'],
-      item: ['associatedLocations', 'associatedCharacters', 'associatedHappenings'],
-    };
-
-    // Build the extraction prompt
-    const typeInstructions = entityTypes.map((type: string) => {
-      const fields = entitySchemas[type] || [];
-      const relations = relationFields[type] || [];
-      const custom = customAttributes[type] || [];
-      
-      const customFieldsStr = custom.length > 0 
-        ? custom.map((attr: any) => `- ${attr.key}: ${attr.label}`).join('\n')
-        : '';
+    // Build the extraction prompt based on configured entity types
+    const typeInstructions = entityTypes.map((typeDef) => {
+      const attributeList = typeDef.attributes
+        .map(attr => `- ${attr.key}: ${attr.label}`)
+        .join('\n');
       
       return `
-### ${type.charAt(0).toUpperCase() + type.slice(1)}s
-Description: ${entityDescriptions[type] || type}
-Fields to extract:
+### ${typeDef.label}
+Entity type key: "${typeDef.key}"
+Attributes to extract:
 - name: The entity's name (required)
-- shortDescription: 2-3 sentence summary (required)
-${fields.filter(f => f !== 'shortDescription').map(f => `- ${f}: ${getFieldDescription(f)}`).join('\n')}
-${customFieldsStr ? `Custom fields:\n${customFieldsStr}` : ''}
-Relations (use entity IDs):
-${relations.map(r => `- ${r}: Array of IDs of related entities`).join('\n')}`;
+${attributeList}`;
     }).join('\n\n');
 
     const extractionPrompt = `You are analyzing D&D campaign notes. Extract ALL entities mentioned in the text.
@@ -106,11 +83,9 @@ ${typeInstructions}
 IMPORTANT RULES:
 1. Extract EVERY entity mentioned, even if information is incomplete
 2. Use unique IDs for each entity in format: "{type}-{number}" (e.g., "location-1", "character-2")
-3. shortDescription should be exactly 2-3 sentences - no more, no less
-4. Leave fields empty ("") if information is not provided in the text
-5. For relations, ONLY include entity IDs that you are extracting
-6. Do NOT invent information - only extract what's in the text
-7. Be precise with relationships - only create them when clearly implied
+3. Leave fields empty ("") if information is not provided in the text
+4. Do NOT invent information - only extract what's in the text
+5. Each attribute value should be text (string)
 
 Respond with ONLY valid JSON in this exact format:
 {
@@ -119,13 +94,9 @@ Respond with ONLY valid JSON in this exact format:
       "id": "location-1",
       "type": "location",
       "name": "The Sunken Temple",
-      "shortDescription": "An ancient temple dedicated to a forgotten sea god. Now partially submerged beneath the Mistwood Swamp. Contains valuable artifacts guarded by aquatic undead.",
+      "shortDescription": "An ancient temple dedicated to a forgotten sea god.",
       "longDescription": "",
-      "background": "",
-      "associatedCharacters": ["character-1"],
-      "associatedMonsters": ["monster-1"],
-      "associatedHappenings": [],
-      "associatedItems": ["item-1"]
+      "background": ""
     }
   ]
 }`;
@@ -189,63 +160,33 @@ Respond with ONLY valid JSON in this exact format:
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
       console.error('Content that failed to parse:', content);
-      
-      // Return empty result rather than fake data
       entities = [];
     }
 
-    // Filter to only requested types and validate
-    entities = entities.filter(e => entityTypes.includes(e.type));
+    // Build a map of valid entity type keys
+    const validTypeKeys = new Set(entityTypes.map(t => t.key));
+    
+    // Filter to only valid types and ensure all attributes exist
+    entities = entities
+      .filter(e => validTypeKeys.has(e.type))
+      .map((entity, idx) => {
+        const typeDef = entityTypes.find(t => t.key === entity.type);
+        if (!typeDef) return null;
+        
+        const cleaned: ExtractedEntity = {
+          id: entity.id || `${entity.type}-${idx + 1}`,
+          type: entity.type,
+          name: entity.name || `Unknown ${typeDef.label}`,
+        };
 
-    // Ensure all entities have required fields
-    entities = entities.map((entity, idx) => {
-      const type = entity.type as string;
-      const fields = entitySchemas[type] || [];
-      const relations = relationFields[type] || [];
-      
-      const cleaned: ExtractedEntity = {
-        id: entity.id || `${type}-${idx + 1}`,
-        type: entity.type,
-        name: entity.name || `Unknown ${type}`,
-        shortDescription: entity.shortDescription || '',
-        longDescription: entity.longDescription || '',
-      };
+        // Add all configured attributes
+        typeDef.attributes.forEach(attr => {
+          cleaned[attr.key] = entity[attr.key] || '';
+        });
 
-      // Add type-specific fields
-      fields.forEach(field => {
-        if (field !== 'shortDescription' && field !== 'longDescription') {
-          cleaned[field] = entity[field] || '';
-        }
-      });
-
-      // Add custom attributes
-      const custom = customAttributes[type] || [];
-      custom.forEach((attr: any) => {
-        cleaned[attr.key] = entity[attr.key] || '';
-      });
-
-      // Add relation fields
-      relations.forEach(rel => {
-        cleaned[rel] = Array.isArray(entity[rel]) ? entity[rel] : [];
-      });
-
-      return cleaned;
-    });
-
-    // Validate relations - remove references to non-existent entities
-    const entityIds = new Set(entities.map(e => e.id));
-    entities = entities.map(entity => {
-      const type = entity.type as string;
-      const relations = relationFields[type] || [];
-      
-      relations.forEach(rel => {
-        if (Array.isArray(entity[rel])) {
-          entity[rel] = entity[rel].filter((id: string) => entityIds.has(id));
-        }
-      });
-      
-      return entity;
-    });
+        return cleaned;
+      })
+      .filter(Boolean) as ExtractedEntity[];
 
     console.log(`Extracted ${entities.length} entities`);
 
@@ -262,19 +203,3 @@ Respond with ONLY valid JSON in this exact format:
     );
   }
 });
-
-function getFieldDescription(field: string): string {
-  const descriptions: Record<string, string> = {
-    longDescription: 'Detailed description if available',
-    background: 'History and background information',
-    potentialStarts: 'How this event might begin',
-    potentialOutcomes: 'Possible results of this event',
-    motivationsGoals: 'What drives this character',
-    personality: 'Character traits and demeanor',
-    abilities: 'Special powers or combat capabilities',
-    behavior: 'How this creature acts',
-    properties: 'Magical or special properties',
-    history: 'Origin and previous owners',
-  };
-  return descriptions[field] || field;
-}
