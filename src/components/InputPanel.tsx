@@ -1,23 +1,34 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2 } from 'lucide-react';
+import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES } from '@/types/mindmap';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 
 interface InputPanelProps {
-  onProcess: (text: string, extractionOptions: ExtractionOptions) => void;
-  onImport: (data: CampaignExport) => void;
+  onProcess: (text: string, extractionOptions: ExtractionOptions, keepExisting: boolean) => void;
+  onImport: (data: CampaignExport, keepExisting: boolean) => void;
   onExport: () => void;
   processingState: ProcessingState;
   hasData: boolean;
   entityTypes: EntityTypeDef[];
   onEntityTypesChange: (types: EntityTypeDef[]) => void;
+  existingEntities: CampaignEntity[];
+}
+
+interface DeleteWarning {
+  type: 'entityType' | 'attribute';
+  entityTypeKey: string;
+  attributeKey?: string;
+  affectedCount: number;
+  onConfirm: () => void;
 }
 
 export function InputPanel({ 
@@ -28,12 +39,15 @@ export function InputPanel({
   hasData,
   entityTypes,
   onEntityTypesChange,
+  existingEntities,
 }: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [openEntityTypes, setOpenEntityTypes] = useState<string[]>([]);
+  const [keepAllEntities, setKeepAllEntities] = useState(true);
+  const [deleteWarning, setDeleteWarning] = useState<DeleteWarning | null>(null);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
@@ -61,7 +75,20 @@ export function InputPanel({
   };
 
   const handleRemoveEntityType = (key: string) => {
-    onEntityTypesChange(entityTypes.filter(t => t.key !== key));
+    const affectedCount = existingEntities.filter(e => e.type === key).length;
+    if (affectedCount > 0) {
+      setDeleteWarning({
+        type: 'entityType',
+        entityTypeKey: key,
+        affectedCount,
+        onConfirm: () => {
+          onEntityTypesChange(entityTypes.filter(t => t.key !== key));
+          setDeleteWarning(null);
+        },
+      });
+    } else {
+      onEntityTypesChange(entityTypes.filter(t => t.key !== key));
+    }
   };
 
   const handleUpdateEntityType = (key: string, updates: Partial<EntityTypeDef>) => {
@@ -106,9 +133,29 @@ export function InputPanel({
     const typeDef = entityTypes.find(t => t.key === typeKey);
     if (!typeDef) return;
     
-    handleUpdateEntityType(typeKey, {
-      attributes: typeDef.attributes.filter((_, i) => i !== attrIndex),
-    });
+    const attrKey = typeDef.attributes[attrIndex]?.key;
+    const affectedCount = existingEntities.filter(e => 
+      e.type === typeKey && e[attrKey] && String(e[attrKey]).trim() !== ''
+    ).length;
+    
+    if (affectedCount > 0) {
+      setDeleteWarning({
+        type: 'attribute',
+        entityTypeKey: typeKey,
+        attributeKey: attrKey,
+        affectedCount,
+        onConfirm: () => {
+          handleUpdateEntityType(typeKey, {
+            attributes: typeDef.attributes.filter((_, i) => i !== attrIndex),
+          });
+          setDeleteWarning(null);
+        },
+      });
+    } else {
+      handleUpdateEntityType(typeKey, {
+        attributes: typeDef.attributes.filter((_, i) => i !== attrIndex),
+      });
+    }
   };
 
   const handleFileUpload = useCallback(async (file: File) => {
@@ -117,7 +164,7 @@ export function InputPanel({
         const text = await file.text();
         const data = JSON.parse(text) as CampaignExport;
         if (data.version && data.entities) {
-          onImport(data);
+          onImport(data, keepAllEntities);
           setFileName(file.name);
           return;
         }
@@ -191,7 +238,7 @@ export function InputPanel({
       entityTypes: entityTypes,
     };
     
-    onProcess(inputText, extractionOptions);
+    onProcess(inputText, extractionOptions, keepAllEntities);
   };
 
   const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && entityTypes.length > 0;
@@ -456,6 +503,18 @@ export function InputPanel({
               </div>
             </div>
 
+            {/* Keep All Entities Checkbox */}
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 border border-border">
+              <Checkbox
+                id="keep-all-entities"
+                checked={keepAllEntities}
+                onCheckedChange={(checked) => setKeepAllEntities(checked === true)}
+              />
+              <Label htmlFor="keep-all-entities" className="text-sm font-serif cursor-pointer flex-1">
+                Keep existing entities (merge)
+              </Label>
+            </div>
+
             {/* Generate Button */}
             <Button
               size="lg"
@@ -497,6 +556,37 @@ export function InputPanel({
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Warning Dialog */}
+      <Dialog open={!!deleteWarning} onOpenChange={() => setDeleteWarning(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" />
+              Warning: Data will be deleted
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              {deleteWarning?.type === 'entityType' ? (
+                <>
+                  Deleting this entity type will remove <strong>{deleteWarning.affectedCount} entities</strong> from your campaign.
+                </>
+              ) : (
+                <>
+                  Deleting this attribute will remove content from <strong>{deleteWarning?.affectedCount} entities</strong>.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteWarning(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={deleteWarning?.onConfirm}>
+              Delete Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

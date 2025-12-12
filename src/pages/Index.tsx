@@ -38,9 +38,54 @@ export default function Index() {
     message: '',
   });
 
+  // Helper to merge entities
+  const mergeEntities = useCallback((
+    existingEntities: CampaignEntity[],
+    newEntities: CampaignEntity[]
+  ): CampaignEntity[] => {
+    const merged = [...existingEntities];
+    
+    newEntities.forEach(newEntity => {
+      // Try to find existing entity by name (case insensitive)
+      const existingIdx = merged.findIndex(e => 
+        e.name.toLowerCase() === newEntity.name.toLowerCase() && e.type === newEntity.type
+      );
+      
+      if (existingIdx !== -1) {
+        // Merge: append text to existing attributes
+        const existing = merged[existingIdx];
+        const mergedEntity = { ...existing };
+        
+        Object.keys(newEntity).forEach(key => {
+          if (['id', 'type', 'name'].includes(key)) return;
+          
+          const newValue = String(newEntity[key] || '').trim();
+          const existingValue = String(existing[key] || '').trim();
+          
+          if (newValue && newValue !== existingValue) {
+            if (existingValue) {
+              // Append new content if different
+              mergedEntity[key] = existingValue + '\n\n' + newValue;
+            } else {
+              mergedEntity[key] = newValue;
+            }
+          }
+        });
+        
+        merged[existingIdx] = mergedEntity;
+      } else {
+        // New entity - add it
+        merged.push(newEntity);
+      }
+    });
+    
+    return merged;
+  }, []);
+
   const handleProcess = useCallback(async (
     text: string, 
-    extractionOptions: ExtractionOptions
+    extractionOptions: ExtractionOptions,
+    keepExisting: boolean
   ) => {
     const startTime = Date.now();
     
@@ -77,8 +122,13 @@ export default function Index() {
       const result = await response.json();
       const processingTime = Date.now() - startTime;
 
+      const existingEntities = campaignData?.entities || [];
+      const finalEntities = keepExisting 
+        ? mergeEntities(existingEntities, result.entities)
+        : result.entities;
+
       setCampaignData({
-        entities: result.entities,
+        entities: finalEntities,
         processingTime,
       });
 
@@ -88,9 +138,12 @@ export default function Index() {
         message: 'Complete!',
       });
 
+      const addedCount = finalEntities.length - existingEntities.length;
       toast({
         title: "Campaign extracted",
-        description: `Found ${result.entities.length} entities`,
+        description: keepExisting 
+          ? `Merged ${result.entities.length} entities (${addedCount} new)`
+          : `Found ${result.entities.length} entities`,
       });
 
     } catch (error) {
@@ -102,21 +155,43 @@ export default function Index() {
         error: error instanceof Error ? error.message : 'An unexpected error occurred',
       });
     }
-  }, []);
+  }, [campaignData, mergeEntities]);
 
-  const handleImport = useCallback((data: CampaignExport) => {
+  const handleImport = useCallback((data: CampaignExport, keepExisting: boolean) => {
+    const existingEntities = campaignData?.entities || [];
+    const finalEntities = keepExisting 
+      ? mergeEntities(existingEntities, data.entities)
+      : data.entities;
+    
     setCampaignData({
-      entities: data.entities,
+      entities: finalEntities,
       processingTime: 0,
     });
+    
     if (data.entityTypes && data.entityTypes.length > 0) {
-      setEntityTypes(data.entityTypes);
+      if (keepExisting) {
+        // Merge entity types
+        const merged = [...entityTypes];
+        data.entityTypes.forEach(newType => {
+          const existingIdx = merged.findIndex(t => t.key === newType.key);
+          if (existingIdx === -1) {
+            merged.push(newType);
+          }
+        });
+        setEntityTypes(merged);
+      } else {
+        setEntityTypes(data.entityTypes);
+      }
     }
+    
+    const addedCount = finalEntities.length - existingEntities.length;
     toast({
       title: "Campaign imported",
-      description: `Loaded ${data.entities.length} entities`,
+      description: keepExisting 
+        ? `Merged ${data.entities.length} entities (${addedCount} new)`
+        : `Loaded ${data.entities.length} entities`,
     });
-  }, []);
+  }, [campaignData, entityTypes, mergeEntities]);
 
   const handleExport = useCallback(() => {
     if (!campaignData) return;
@@ -316,6 +391,7 @@ export default function Index() {
               hasData={!!campaignData}
               entityTypes={entityTypes}
               onEntityTypesChange={setEntityTypes}
+              existingEntities={campaignData?.entities || []}
             />
           )}
         </aside>
