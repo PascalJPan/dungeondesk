@@ -141,9 +141,23 @@ export interface EmptyField {
   fieldLabel: string;
 }
 
+// Prompt settings for external AI
+export interface PromptSettings {
+  contentLanguage: string;
+  tone: string;
+  inferMissing: boolean; // true = infer/fabricate, false = leave empty
+}
+
+export const DEFAULT_PROMPT_SETTINGS: PromptSettings = {
+  contentLanguage: 'English',
+  tone: 'High Fantasy',
+  inferMissing: false,
+};
+
 // Extraction options
 export interface ExtractionOptions {
   entityTypes: EntityTypeDef[];
+  promptSettings?: PromptSettings;
 }
 
 // Campaign export format
