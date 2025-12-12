@@ -15,6 +15,7 @@ interface EntityTypeDef {
   label: string;
   color: string;
   attributes: AttributeDef[];
+  extractionPrompt?: string;
 }
 
 interface ExtractedEntity {
@@ -64,9 +65,13 @@ serve(async (req) => {
         .map(attr => `- ${attr.key}: ${attr.label}`)
         .join('\n');
       
+      const promptGuidance = typeDef.extractionPrompt 
+        ? `\nEXTRACTION GUIDANCE: ${typeDef.extractionPrompt}`
+        : '';
+      
       return `
 ### ${typeDef.label}
-Entity type key: "${typeDef.key}"
+Entity type key: "${typeDef.key}"${promptGuidance}
 Attributes to extract:
 - name: The entity's name (required)
 ${attributeList}`;
