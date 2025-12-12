@@ -30,6 +30,13 @@ export interface AttributeDef {
   label: string;
 }
 
+// Attack definition for combat entities
+export interface Attack {
+  name: string;
+  toHit: string;
+  damage: string;
+}
+
 // Default entity type definitions
 export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
   {
@@ -68,6 +75,12 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
       { key: 'motivationsGoals', label: 'Motivations & Goals' },
       { key: 'personality', label: 'Personality' },
       { key: 'associatedEntities', label: 'Associated Entities' },
+      { key: 'healthPoints', label: 'Health Points' },
+      { key: 'armorClass', label: 'Armor Class' },
+      { key: 'speed', label: 'Speed' },
+      { key: 'speedWater', label: 'Speed Water' },
+      { key: 'attacks', label: 'Attacks' },
+      { key: 'resistancesAdvantages', label: 'Resistances/Advantages' },
     ],
   },
   {
@@ -80,6 +93,12 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
       { key: 'abilities', label: 'Abilities' },
       { key: 'behavior', label: 'Behavior' },
       { key: 'associatedEntities', label: 'Associated Entities' },
+      { key: 'healthPoints', label: 'Health Points' },
+      { key: 'armorClass', label: 'Armor Class' },
+      { key: 'speed', label: 'Speed' },
+      { key: 'speedWater', label: 'Speed Water' },
+      { key: 'attacks', label: 'Attacks' },
+      { key: 'resistancesAdvantages', label: 'Resistances/Advantages' },
     ],
   },
   {
