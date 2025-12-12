@@ -9,14 +9,17 @@ import {
   EntityTypeDef,
   getEntityColor,
 } from '@/types/mindmap';
+import { cn } from '@/lib/utils';
 
 interface EntityReaderProps {
   entity: CampaignEntity | null;
   entityTypes: EntityTypeDef[];
+  entities: CampaignEntity[];
   onClose: () => void;
+  onEntityClick: (entity: CampaignEntity) => void;
 }
 
-export function EntityReader({ entity, entityTypes, onClose }: EntityReaderProps) {
+export function EntityReader({ entity, entityTypes, entities, onClose, onEntityClick }: EntityReaderProps) {
   if (!entity) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
@@ -31,19 +34,66 @@ export function EntityReader({ entity, entityTypes, onClose }: EntityReaderProps
   const typeDef = entityTypes.find(t => t.key === entity.type);
   const color = getEntityColor(entityTypes, entity.type);
 
+  // Helper to render associated entities as clickable links
+  const renderAssociatedEntities = (value: string) => {
+    const names = value.split(',').map(s => s.trim()).filter(Boolean);
+    
+    return (
+      <div className="flex flex-wrap gap-2">
+        {names.map((name, idx) => {
+          const linkedEntity = entities.find(e => 
+            e.name.toLowerCase() === name.toLowerCase()
+          );
+          
+          if (linkedEntity) {
+            const linkedColor = getEntityColor(entityTypes, linkedEntity.type);
+            return (
+              <button
+                key={idx}
+                onClick={() => onEntityClick(linkedEntity)}
+                className={cn(
+                  "text-sm font-serif px-2 py-1 rounded-md border transition-colors",
+                  "hover:bg-muted/50 cursor-pointer"
+                )}
+                style={{ borderColor: linkedColor, color: linkedColor }}
+              >
+                {name}
+              </button>
+            );
+          }
+          
+          return (
+            <span 
+              key={idx} 
+              className="text-sm font-serif text-muted-foreground px-2 py-1"
+            >
+              {name}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderedFields = typeDef?.attributes
     .map(attr => {
       const value = entity[attr.key];
       if (!value || (typeof value === 'string' && value.trim() === '')) return null;
+
+      const isAssociatedEntities = attr.key === 'associatedEntities';
 
       return (
         <div key={attr.key} className="space-y-1.5">
           <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
             {attr.label}
           </h4>
-          <p className="text-sm font-serif leading-relaxed text-foreground whitespace-pre-wrap">
-            {value}
-          </p>
+          {isAssociatedEntities ? (
+            renderAssociatedEntities(value)
+          ) : (
+            <p className="text-sm font-serif leading-relaxed text-foreground whitespace-pre-wrap">
+              {value}
+            </p>
+          )}
         </div>
       );
     })
