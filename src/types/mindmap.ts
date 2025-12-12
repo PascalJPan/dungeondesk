@@ -145,13 +145,21 @@ export interface EmptyField {
 export interface PromptSettings {
   contentLanguage: string;
   tone: string;
-  inferMissing: boolean; // true = infer/fabricate, false = leave empty
+  inferLevel: number; // 1=never, 2=rarely, 3=sometimes, 4=often, 5=always
 }
 
 export const DEFAULT_PROMPT_SETTINGS: PromptSettings = {
   contentLanguage: 'English',
   tone: 'High Fantasy',
-  inferMissing: false,
+  inferLevel: 1, // Never by default
+};
+
+export const INFER_LEVEL_LABELS: Record<number, string> = {
+  1: 'Never',
+  2: 'Rarely',
+  3: 'Sometimes',
+  4: 'Often',
+  5: 'Always',
 };
 
 // Extraction options
