@@ -31,6 +31,7 @@ export function TableView({ data, entityTypes, onEntitySelect, selectedEntityId 
   const [selectedType, setSelectedType] = useState<string | null>(null);
 
   const entities = data?.entities || [];
+  const hasEntities = entities.length > 0;
 
   const getCardAt = useCallback((row: number, col: number) => {
     const placed = placedCards.find(c => c.row === row && c.col === col);
@@ -63,6 +64,20 @@ export function TableView({ data, entityTypes, onEntitySelect, selectedEntityId 
     const matchesType = !selectedType || entity.type === selectedType;
     return matchesSearch && matchesType;
   });
+
+  if (!hasEntities) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
+        <div className="w-20 h-20 mx-auto rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+          <span className="text-3xl">🎲</span>
+        </div>
+        <div className="mt-4 text-center">
+          <p className="font-display text-sm">No entities yet</p>
+          <p className="text-xs mt-1 font-serif">Add entities from the List or Nodes view first</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col p-4">

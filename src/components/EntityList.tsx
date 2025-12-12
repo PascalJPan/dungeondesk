@@ -33,9 +33,25 @@ export function EntityList({ data, entityTypes, selectedEntityId, onSelectEntity
             <span className="text-3xl">📜</span>
           </div>
           <div>
-            <p className="font-display text-sm">No campaign data</p>
-            <p className="text-xs mt-1 font-serif">Extract campaign notes to see entities</p>
+            <p className="font-display text-sm">No entities yet</p>
+            <p className="text-xs mt-1 font-serif">Add entities using the + buttons below</p>
           </div>
+          {onAddEntity && (
+            <div className="flex flex-wrap justify-center gap-2 mt-4">
+              {entityTypes.map(typeDef => (
+                <Button
+                  key={typeDef.key}
+                  variant="outline"
+                  size="sm"
+                  className="font-serif"
+                  onClick={() => onAddEntity(typeDef)}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  {typeDef.label.endsWith('s') ? typeDef.label.slice(0, -1) : typeDef.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
