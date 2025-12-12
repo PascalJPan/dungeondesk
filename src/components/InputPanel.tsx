@@ -1,12 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, Type, Loader2, Plus, X, Download, FolderOpen } from 'lucide-react';
+import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ProcessingState, ExtractionOptions, EntityType, ENTITY_TYPE_INFO, CustomAttribute, CampaignExport, CampaignData } from '@/types/mindmap';
+import { ProcessingState, ExtractionOptions, EntityType, ENTITY_TYPE_INFO, ENTITY_FIELDS, CustomAttribute, CampaignExport } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 
 interface InputPanelProps {
@@ -32,7 +33,7 @@ export function InputPanel({ onProcess, onImport, onExport, processingState, has
   });
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [attributesOpen, setAttributesOpen] = useState(false);
+  const [openEntityTypes, setOpenEntityTypes] = useState<EntityType[]>([]);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
@@ -42,6 +43,12 @@ export function InputPanel({ onProcess, onImport, onExport, processingState, has
     } else {
       setSelectedEntityTypes(prev => prev.filter(t => t !== type));
     }
+  };
+
+  const toggleEntityTypeOpen = (type: EntityType) => {
+    setOpenEntityTypes(prev => 
+      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+    );
   };
 
   const handleAddAttribute = (type: EntityType) => {
@@ -73,7 +80,6 @@ export function InputPanel({ onProcess, onImport, onExport, processingState, has
   };
 
   const handleFileUpload = useCallback(async (file: File) => {
-    // Handle JSON import
     if (file.name.toLowerCase().endsWith('.json')) {
       try {
         const text = await file.text();
@@ -149,7 +155,6 @@ export function InputPanel({ onProcess, onImport, onExport, processingState, has
   const handleGenerate = () => {
     if (!inputText.trim() || selectedEntityTypes.length === 0) return;
     
-    // Filter out empty custom attributes
     const filteredCustomAttributes: Record<EntityType, CustomAttribute[]> = {} as any;
     for (const type of ALL_ENTITY_TYPES) {
       filteredCustomAttributes[type] = customAttributes[type].filter(a => a.label.trim());
@@ -166,206 +171,264 @@ export function InputPanel({ onProcess, onImport, onExport, processingState, has
   const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && selectedEntityTypes.length > 0;
 
   return (
-    <div className="flex flex-col h-full p-4 gap-4 overflow-y-auto scrollbar-thin ink-texture">
-      {/* Header */}
-      <div className="space-y-1">
-        <h2 className="text-lg font-display text-foreground">Campaign Input</h2>
-        <p className="text-sm text-muted-foreground font-serif">
-          Upload notes, paste text, or import JSON
-        </p>
-      </div>
-
-      {/* Import/Export */}
-      {hasData && (
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1 font-serif"
-            onClick={onExport}
+    <div className="flex flex-col h-full">
+      <Tabs defaultValue="input" className="flex flex-col h-full">
+        <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent p-0 h-auto shrink-0">
+          <TabsTrigger 
+            value="input"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export JSON
-          </Button>
-        </div>
-      )}
+            <FileText className="w-4 h-4 mr-1" />
+            Input
+          </TabsTrigger>
+          <TabsTrigger 
+            value="settings"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
+          >
+            <Settings className="w-4 h-4 mr-1" />
+            Settings
+          </TabsTrigger>
+        </TabsList>
 
-      {/* File Upload */}
-      <div
-        className={cn(
-          "relative border-2 border-dashed rounded-lg p-6 transition-all duration-200 cursor-pointer",
-          isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30",
-          isExtracting && "pointer-events-none opacity-70"
-        )}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onClick={() => document.getElementById('file-input')?.click()}
-      >
-        <input
-          id="file-input"
-          type="file"
-          accept=".pdf,.json"
-          className="hidden"
-          onChange={handleFileInput}
-        />
-        <div className="flex flex-col items-center gap-2 text-center">
-          {isExtracting ? (
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          ) : (
-            <Upload className={cn(
-              "w-8 h-8 transition-colors",
-              isDragging ? "text-primary" : "text-muted-foreground"
-            )} />
-          )}
-          <div>
-            {fileName ? (
-              <div className="flex items-center gap-2 text-sm text-foreground font-serif">
-                <FileText className="w-4 h-4 text-primary" />
-                {fileName}
+        {/* Input Tab */}
+        <TabsContent value="input" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
+          <div className="p-4 space-y-4 ink-texture">
+            {/* Header */}
+            <div className="space-y-1">
+              <h2 className="text-lg font-display text-foreground">Campaign Input</h2>
+              <p className="text-sm text-muted-foreground font-serif">
+                Upload notes, paste text, or import JSON
+              </p>
+            </div>
+
+            {/* Import/Export */}
+            {hasData && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full font-serif"
+                onClick={onExport}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export JSON
+              </Button>
+            )}
+
+            {/* File Upload */}
+            <div
+              className={cn(
+                "relative border-2 border-dashed rounded-lg p-6 transition-all duration-200 cursor-pointer",
+                isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30",
+                isExtracting && "pointer-events-none opacity-70"
+              )}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onClick={() => document.getElementById('file-input')?.click()}
+            >
+              <input
+                id="file-input"
+                type="file"
+                accept=".pdf,.json"
+                className="hidden"
+                onChange={handleFileInput}
+              />
+              <div className="flex flex-col items-center gap-2 text-center">
+                {isExtracting ? (
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                ) : (
+                  <Upload className={cn(
+                    "w-8 h-8 transition-colors",
+                    isDragging ? "text-primary" : "text-muted-foreground"
+                  )} />
+                )}
+                <div>
+                  {fileName ? (
+                    <div className="flex items-center gap-2 text-sm text-foreground font-serif">
+                      <FileText className="w-4 h-4 text-primary" />
+                      {fileName}
+                    </div>
+                  ) : isExtracting ? (
+                    <p className="text-sm text-muted-foreground font-serif">Extracting text...</p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-foreground font-serif">
+                        Drop PDF or JSON here
+                      </p>
+                      <p className="text-xs text-muted-foreground font-serif">PDF for extraction, JSON to continue</p>
+                    </>
+                  )}
+                </div>
               </div>
-            ) : isExtracting ? (
-              <p className="text-sm text-muted-foreground font-serif">Extracting text...</p>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-foreground font-serif">
-                  Drop PDF or JSON here
+            </div>
+
+            {/* Text Input */}
+            <div className="flex-1 flex flex-col gap-2 min-h-0">
+              <div className="flex items-center gap-2">
+                <Type className="w-4 h-4 text-muted-foreground" />
+                <Label className="text-sm text-muted-foreground font-serif">Or paste text directly</Label>
+              </div>
+              <Textarea
+                placeholder="Paste your campaign notes here..."
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                className="flex-1 min-h-[150px] resize-none bg-muted/30 border-border focus:border-primary/50 text-sm scrollbar-thin font-serif"
+              />
+              <div className="text-xs text-muted-foreground text-right font-mono">
+                {inputText.length.toLocaleString()} characters
+              </div>
+            </div>
+
+            {/* Generate Button */}
+            <Button
+              size="lg"
+              onClick={handleGenerate}
+              disabled={!canGenerate}
+              className="w-full font-display text-base glow-primary-sm"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {processingState.message}
+                </>
+              ) : (
+                'Extract Campaign'
+              )}
+            </Button>
+
+            {/* Progress */}
+            {isProcessing && (
+              <div className="space-y-2">
+                <div className="h-1 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${processingState.progress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground text-center font-mono">
+                  {processingState.progress}% complete
                 </p>
-                <p className="text-xs text-muted-foreground font-serif">PDF for extraction, JSON to continue</p>
-              </>
+              </div>
+            )}
+
+            {/* Error */}
+            {processingState.status === 'error' && (
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                <p className="text-sm text-destructive font-serif">{processingState.error}</p>
+              </div>
             )}
           </div>
-        </div>
-      </div>
+        </TabsContent>
 
-      {/* Text Input */}
-      <div className="flex-1 flex flex-col gap-2 min-h-0">
-        <div className="flex items-center gap-2">
-          <Type className="w-4 h-4 text-muted-foreground" />
-          <Label className="text-sm text-muted-foreground font-serif">Or paste text directly</Label>
-        </div>
-        <Textarea
-          placeholder="Paste your campaign notes here..."
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          className="flex-1 min-h-[120px] resize-none bg-muted/30 border-border focus:border-primary/50 text-sm scrollbar-thin font-serif"
-        />
-        <div className="text-xs text-muted-foreground text-right font-mono">
-          {inputText.length.toLocaleString()} characters
-        </div>
-      </div>
-
-      {/* Entity Types */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium font-serif">Extract Entity Types</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {ALL_ENTITY_TYPES.map((type) => (
-            <div key={type} className="flex items-center space-x-2">
-              <Checkbox
-                id={`entity-${type}`}
-                checked={selectedEntityTypes.includes(type)}
-                onCheckedChange={(checked) => handleEntityTypeToggle(type, checked as boolean)}
-              />
-              <Label 
-                htmlFor={`entity-${type}`} 
-                className="text-sm cursor-pointer flex items-center gap-2 font-serif"
-              >
-                <span 
-                  className="w-2 h-2 rounded-full" 
-                  style={{ backgroundColor: ENTITY_TYPE_INFO[type].color }}
-                />
-                {ENTITY_TYPE_INFO[type].label}
-              </Label>
+        {/* Settings Tab */}
+        <TabsContent value="settings" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
+          <div className="p-4 space-y-2 ink-texture">
+            <div className="space-y-1 mb-4">
+              <h2 className="text-lg font-display text-foreground">Entity Settings</h2>
+              <p className="text-sm text-muted-foreground font-serif">
+                Configure which entity types to extract and their attributes
+              </p>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Custom Attributes */}
-      <Collapsible open={attributesOpen} onOpenChange={setAttributesOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="w-full justify-between font-serif">
-            <span>Custom Attributes</span>
-            <Plus className={cn("w-4 h-4 transition-transform", attributesOpen && "rotate-45")} />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 pt-2">
-          {ALL_ENTITY_TYPES.filter(t => selectedEntityTypes.includes(t)).map((type) => (
-            <div key={type} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground font-mono uppercase">
-                  {ENTITY_TYPE_INFO[type].label}
-                </Label>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 px-2"
-                  onClick={() => handleAddAttribute(type)}
+            {ALL_ENTITY_TYPES.map((type) => {
+              const typeInfo = ENTITY_TYPE_INFO[type];
+              const isSelected = selectedEntityTypes.includes(type);
+              const isOpen = openEntityTypes.includes(type);
+              const defaultFields = ENTITY_FIELDS[type].filter(f => f.type !== 'relations');
+              const customAttrs = customAttributes[type];
+
+              return (
+                <Collapsible 
+                  key={type} 
+                  open={isOpen}
+                  onOpenChange={() => toggleEntityTypeOpen(type)}
+                  className="border border-border rounded-lg overflow-hidden"
                 >
-                  <Plus className="w-3 h-3" />
-                </Button>
-              </div>
-              {customAttributes[type].map((attr, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <Input
-                    value={attr.label}
-                    onChange={(e) => handleUpdateAttribute(type, idx, e.target.value)}
-                    placeholder="Attribute name (e.g., ATK)"
-                    className="h-7 text-xs font-serif"
-                  />
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-7 px-2"
-                    onClick={() => handleRemoveAttribute(type, idx)}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ))}
-        </CollapsibleContent>
-      </Collapsible>
+                  <CollapsibleTrigger className="w-full">
+                    <div className={cn(
+                      "flex items-center justify-between p-3 hover:bg-muted/30 transition-colors",
+                      isOpen && "bg-muted/20"
+                    )}>
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            handleEntityTypeToggle(type, checked as boolean);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <span 
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: typeInfo.color }}
+                        />
+                        <span className="font-serif font-medium">{typeInfo.label}</span>
+                      </div>
+                      <ChevronDown className={cn(
+                        "w-4 h-4 text-muted-foreground transition-transform",
+                        isOpen && "rotate-180"
+                      )} />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-3 pb-3 pt-1 border-t border-border/50 space-y-3">
+                      {/* Default Attributes */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                          Default Attributes
+                        </Label>
+                        <div className="space-y-1 pl-2">
+                          {defaultFields.map(field => (
+                            <div key={field.key} className="text-sm text-muted-foreground font-serif flex items-center gap-2">
+                              <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
+                              {field.label}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-      {/* Generate Button */}
-      <Button
-        size="lg"
-        onClick={handleGenerate}
-        disabled={!canGenerate}
-        className="w-full font-display text-base glow-primary-sm"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            {processingState.message}
-          </>
-        ) : (
-          'Extract Campaign'
-        )}
-      </Button>
-
-      {/* Progress */}
-      {isProcessing && (
-        <div className="space-y-2">
-          <div className="h-1 bg-muted rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-primary transition-all duration-300"
-              style={{ width: `${processingState.progress}%` }}
-            />
+                      {/* Custom Attributes */}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                          Custom Attributes
+                        </Label>
+                        <div className="space-y-2 pl-2">
+                          {customAttrs.map((attr, idx) => (
+                            <div key={idx} className="flex gap-2">
+                              <Input
+                                value={attr.label}
+                                onChange={(e) => handleUpdateAttribute(type, idx, e.target.value)}
+                                placeholder="Attribute name (e.g., ATK)"
+                                className="h-8 text-sm font-serif"
+                              />
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-8 px-2 shrink-0"
+                                onClick={() => handleRemoveAttribute(type, idx)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full font-serif text-muted-foreground"
+                            onClick={() => handleAddAttribute(type)}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add Attribute
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
           </div>
-          <p className="text-xs text-muted-foreground text-center font-mono">
-            {processingState.progress}% complete
-          </p>
-        </div>
-      )}
-
-      {/* Error */}
-      {processingState.status === 'error' && (
-        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
-          <p className="text-sm text-destructive font-serif">{processingState.error}</p>
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
