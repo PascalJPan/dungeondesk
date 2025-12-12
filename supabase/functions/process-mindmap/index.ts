@@ -226,10 +226,15 @@ Respond with ONLY valid JSON in this exact format:
         }
       });
       
-      // Merge with any AI-extracted associations
-      const existingAssocs = entity.associatedEntities 
-        ? entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
-        : [];
+      // Merge with any AI-extracted associations (handle both array and string formats)
+      let existingAssocs: string[] = [];
+      if (entity.associatedEntities) {
+        if (Array.isArray(entity.associatedEntities)) {
+          existingAssocs = entity.associatedEntities.map((s: any) => String(s).trim()).filter(Boolean);
+        } else if (typeof entity.associatedEntities === 'string') {
+          existingAssocs = entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      }
       
       const allAssocs = [...new Set([...existingAssocs, ...mentionedEntities])];
       entity.associatedEntities = allAssocs.join(', ');
@@ -237,16 +242,26 @@ Respond with ONLY valid JSON in this exact format:
 
     // Make associations bidirectional
     entities.forEach(entity => {
-      const assocs = entity.associatedEntities 
-        ? entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
-        : [];
+      let assocs: string[] = [];
+      if (entity.associatedEntities) {
+        if (Array.isArray(entity.associatedEntities)) {
+          assocs = entity.associatedEntities.map((s: any) => String(s).trim()).filter(Boolean);
+        } else if (typeof entity.associatedEntities === 'string') {
+          assocs = entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      }
       
       assocs.forEach((assocName: string) => {
         const linkedEntity = entityByName.get(assocName.toLowerCase());
         if (linkedEntity && linkedEntity.id !== entity.id) {
-          const linkedAssocs = linkedEntity.associatedEntities 
-            ? linkedEntity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
-            : [];
+          let linkedAssocs: string[] = [];
+          if (linkedEntity.associatedEntities) {
+            if (Array.isArray(linkedEntity.associatedEntities)) {
+              linkedAssocs = linkedEntity.associatedEntities.map((s: any) => String(s).trim()).filter(Boolean);
+            } else if (typeof linkedEntity.associatedEntities === 'string') {
+              linkedAssocs = linkedEntity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean);
+            }
+          }
           
           if (!linkedAssocs.some((a: string) => a.toLowerCase() === entity.name.toLowerCase())) {
             linkedAssocs.push(entity.name);
