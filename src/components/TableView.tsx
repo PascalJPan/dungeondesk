@@ -102,18 +102,19 @@ export function TableView({ data, entityTypes, onEntitySelect, selectedEntityId 
               <div
                 key={`${row}-${col}`}
                 className={cn(
-                  "aspect-[3/4] min-h-[100px] rounded-lg border-2 border-dashed transition-all relative",
+                  "aspect-[3/4] min-h-[100px] rounded-lg transition-all relative",
                   entity 
-                    ? "border-solid border-border bg-card" 
-                    : "border-border/50 bg-muted/10 hover:border-primary/50 hover:bg-muted/20"
+                    ? "border-2 border-solid bg-card" 
+                    : "border-2 border-dashed border-border/50 bg-muted/10 hover:border-primary/50 hover:bg-muted/20"
                 )}
+                style={entity ? { borderColor: getEntityColor(entityTypes, entity.type) } : undefined}
                 onMouseEnter={() => setHoveredCell({ row, col })}
                 onMouseLeave={() => setHoveredCell(null)}
               >
                 {entity ? (
                   <div 
                     className={cn(
-                      "h-full p-2 flex flex-col cursor-pointer transition-all hover:ring-2 hover:ring-primary/50 rounded-lg",
+                      "h-full p-2 flex flex-col cursor-pointer transition-all hover:ring-2 hover:ring-primary/50 rounded-md",
                       selectedEntityId === entity.id && "ring-2 ring-primary"
                     )}
                     onClick={() => handleCardClick(entity)}
@@ -121,7 +122,7 @@ export function TableView({ data, entityTypes, onEntitySelect, selectedEntityId 
                     {/* Remove button */}
                     <button
                       className={cn(
-                        "absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center transition-opacity",
+                        "absolute -top-2 -right-2 w-5 h-5 rounded-full bg-muted border border-border text-muted-foreground flex items-center justify-center transition-opacity hover:bg-background",
                         isHovered ? "opacity-100" : "opacity-0"
                       )}
                       onClick={(e) => handleRemoveCard(row, col, e)}
@@ -129,21 +130,26 @@ export function TableView({ data, entityTypes, onEntitySelect, selectedEntityId 
                       <X className="w-3 h-3" />
                     </button>
                     
-                    {/* Color indicator */}
-                    <div 
-                      className="w-full h-1.5 rounded-full mb-2"
-                      style={{ backgroundColor: getEntityColor(entityTypes, entity.type) }}
-                    />
-                    
                     {/* Entity name */}
                     <p className="font-serif font-medium text-sm text-foreground line-clamp-2">
                       {entity.name}
                     </p>
                     
-                    {/* Entity type */}
-                    <p className="text-xs text-muted-foreground mt-auto">
-                      {entityTypes.find(t => t.key === entity.type)?.label || entity.type}
-                    </p>
+                    {/* Short description */}
+                    {entity.shortDescription && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-3 font-serif">
+                        {entity.shortDescription}
+                      </p>
+                    )}
+                    
+                    {/* Entity type badge - bottom right, subtle */}
+                    <div className="mt-auto flex justify-end">
+                      <span 
+                        className="text-[10px] text-muted-foreground/60 font-serif"
+                      >
+                        {entityTypes.find(t => t.key === entity.type)?.label || entity.type}
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <Popover 

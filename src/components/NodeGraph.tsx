@@ -106,71 +106,87 @@ export function NodeGraph({
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!data || entityTypes.length === 0) return { initialNodes: [], initialEdges: [] };
 
-    // Sort entities by connection count (most connected first)
-    const sortedEntities = [...data.entities].sort((a, b) => 
-      (connectionCounts.get(b.id) || 0) - (connectionCounts.get(a.id) || 0)
-    );
+    // Group entities by type for clustering
+    const entityGroups = new Map<string, CampaignEntity[]>();
+    data.entities.forEach(entity => {
+      if (!entityGroups.has(entity.type)) {
+        entityGroups.set(entity.type, []);
+      }
+      entityGroups.get(entity.type)!.push(entity);
+    });
 
-    // Position nodes in concentric circles based on connections
+    // Sort entities within each group by connection count
+    entityGroups.forEach((entities, type) => {
+      entities.sort((a, b) => 
+        (connectionCounts.get(b.id) || 0) - (connectionCounts.get(a.id) || 0)
+      );
+    });
+
     const nodes: Node[] = [];
-    const placed = new Set<string>();
     const positions = new Map<string, { x: number; y: number }>();
     
-    // Create layers
-    const layers: string[][] = [];
-    const remaining = new Set(sortedEntities.map(e => e.id));
+    // Calculate layout: spread type clusters around the canvas
+    const typeKeys = Array.from(entityGroups.keys());
+    const numTypes = typeKeys.length;
+    const clusterRadius = 400; // Distance from center for each type cluster
+    const nodeSpacing = 120; // Space between nodes within a cluster
     
-    // First layer: most connected entities (center)
-    if (sortedEntities.length > 0) {
-      const firstLayerCount = Math.min(Math.ceil(sortedEntities.length / 5), 4);
-      layers.push(sortedEntities.slice(0, firstLayerCount).map(e => e.id));
-      layers[0].forEach(id => remaining.delete(id));
-    }
-
-    // Subsequent layers: entities connected to previous layers
-    while (remaining.size > 0) {
-      const layer: string[] = [];
-      const prevLayer = layers[layers.length - 1] || [];
+    typeKeys.forEach((typeKey, typeIdx) => {
+      const entities = entityGroups.get(typeKey)!;
+      const clusterAngle = (2 * Math.PI * typeIdx) / numTypes - Math.PI / 2;
       
-      remaining.forEach(id => {
-        const conns = connectionMap.get(id);
-        const hasConnectionToPrev = prevLayer.some(prevId => conns?.has(prevId));
-        if (hasConnectionToPrev || layers.length === 0) {
-          layer.push(id);
+      // Cluster center position
+      const clusterCenterX = Math.cos(clusterAngle) * clusterRadius;
+      const clusterCenterY = Math.sin(clusterAngle) * clusterRadius;
+      
+      // Arrange entities within cluster in a spiral pattern
+      entities.forEach((entity, i) => {
+        const connCount = connectionCounts.get(entity.id) || 0;
+        
+        if (i === 0 && connCount > 0) {
+          // Most connected entity at cluster center
+          positions.set(entity.id, { x: clusterCenterX, y: clusterCenterY });
+        } else {
+          // Spiral outward from cluster center
+          const spiralLayer = Math.floor((i) / 6) + 1;
+          const spiralAngle = ((i) % 6) * (Math.PI / 3) + (spiralLayer * 0.3);
+          const spiralRadius = spiralLayer * nodeSpacing;
+          
+          // Add some randomness for organic feel
+          const jitterX = (Math.sin(entity.id.length * 1.5) * 20);
+          const jitterY = (Math.cos(entity.id.length * 2.3) * 20);
+          
+          positions.set(entity.id, {
+            x: clusterCenterX + Math.cos(spiralAngle) * spiralRadius + jitterX,
+            y: clusterCenterY + Math.sin(spiralAngle) * spiralRadius + jitterY,
+          });
         }
       });
-
-      // If no connections found, add remaining
-      if (layer.length === 0) {
-        remaining.forEach(id => layer.push(id));
-      }
-
-      layer.forEach(id => remaining.delete(id));
-      if (layer.length > 0) {
-        layers.push(layer);
-      }
-    }
-
-    // Position entities in concentric circles
-    const centerX = 0;
-    const centerY = 0;
+    });
     
-    layers.forEach((layer, layerIdx) => {
-      const radius = layerIdx === 0 ? 0 : 150 + (layerIdx - 1) * 180;
-      
-      if (radius === 0 && layer.length === 1) {
-        positions.set(layer[0], { x: centerX, y: centerY });
-      } else {
-        layer.forEach((entityId, i) => {
-          const angle = (2 * Math.PI * i) / layer.length - Math.PI / 2;
-          const actualRadius = radius === 0 ? 80 : radius;
+    // Pull connected entities closer together
+    const iterations = 3;
+    for (let iter = 0; iter < iterations; iter++) {
+      connectionMap.forEach((connected, entityId) => {
+        const pos = positions.get(entityId);
+        if (!pos) return;
+        
+        connected.forEach(targetId => {
+          const targetPos = positions.get(targetId);
+          if (!targetPos) return;
+          
+          // Calculate midpoint pull (very subtle)
+          const pullStrength = 0.05;
+          const midX = (pos.x + targetPos.x) / 2;
+          const midY = (pos.y + targetPos.y) / 2;
+          
           positions.set(entityId, {
-            x: centerX + Math.cos(angle) * actualRadius,
-            y: centerY + Math.sin(angle) * actualRadius,
+            x: pos.x + (midX - pos.x) * pullStrength,
+            y: pos.y + (midY - pos.y) * pullStrength,
           });
         });
-      }
-    });
+      });
+    }
 
     // Create nodes
     data.entities.forEach(entity => {

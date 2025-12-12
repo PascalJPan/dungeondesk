@@ -29,7 +29,7 @@ ${attrs}
 
 IMPORTANT: Output ONLY valid JSON, no explanations.
 
-The JSON structure should be:
+## Full JSON Structure (for new campaigns):
 {
   "version": "1.0",
   "entities": [
@@ -38,15 +38,37 @@ ${entitySchemas}
   "entityTypes": ${JSON.stringify(entityTypes, null, 2)}
 }
 
-Entity Types and their attributes:
+## Adding to Existing Data:
+To add entities to an existing campaign (without replacing), use this minimal structure:
+{
+  "version": "1.0",
+  "entities": [
+    { "id": "character-5", "type": "character", "name": "New Character", "shortDescription": "..." }
+  ]
+}
+Note: When adding entities, "entityTypes" can be omitted if using existing types. Make sure IDs are unique (increment numbers).
+
+## Entity Types and Attributes:
 ${entityTypes.map(type => {
   return `- ${type.label} (type: "${type.key}")${type.extractionPrompt ? `\n  Guidance: ${type.extractionPrompt}` : ''}
   Attributes: ${type.attributes.map(a => a.label).join(', ')}`;
 }).join('\n\n')}
 
-Generate entities based on the campaign content I provide. Make sure each entity has a unique id following the pattern "type-number" (e.g., "character-1", "location-2").
+## Attack Format (for Characters & Monsters):
+The "attacks" field should be a comma-separated list of attacks in this format:
+"Attack Name: XWY+Z" where X=number of dice, W=die type, Y=die size, Z=bonus
+Examples:
+- "Longsword: 1W8+3, Dagger: 1W4+2"
+- "Bite: 2W6+4, Claw: 1W8+2, Tail Sweep: 1W10"
+- "Crossbow: 1W10+1"
+Use German "W" notation (1W6 = 1d6). Multiple attacks separated by comma.
 
-For "associatedEntities", list the names of related entities as a comma-separated string.`;
+## Important Rules:
+- Each entity MUST have a unique id: "type-number" (e.g., "character-1", "location-2")
+- Every entity MUST have a "shortDescription" (required field)
+- For "associatedEntities", list related entity names as comma-separated string
+
+Generate entities based on the campaign content I provide.`;
 }
 
 interface InputPanelProps {
@@ -172,6 +194,17 @@ export function InputPanel({
     if (!typeDef) return;
     
     const attrKey = typeDef.attributes[attrIndex]?.key;
+    
+    // Prevent deletion of shortDescription - it's required
+    if (attrKey === 'shortDescription') {
+      toast({
+        title: "Cannot delete",
+        description: "Short Description is a required field for all entity types",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const affectedCount = existingEntities.filter(e => 
       e.type === typeKey && e[attrKey] && String(e[attrKey]).trim() !== ''
     ).length;
@@ -442,24 +475,34 @@ export function InputPanel({
                           Attributes
                         </Label>
                         <div className="space-y-2">
-                          {typeDef.attributes.map((attr, idx) => (
-                            <div key={idx} className="flex gap-2">
-                              <Input
-                                value={attr.label}
-                                onChange={(e) => handleUpdateAttribute(typeDef.key, idx, e.target.value)}
-                                placeholder="Attribute name"
-                                className="h-8 text-sm font-serif"
-                              />
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-8 px-2 shrink-0 text-muted-foreground hover:text-destructive"
-                                onClick={() => handleRemoveAttribute(typeDef.key, idx)}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))}
+                          {typeDef.attributes.map((attr, idx) => {
+                            const isProtected = attr.key === 'shortDescription';
+                            return (
+                              <div key={idx} className="flex gap-2">
+                                <Input
+                                  value={attr.label}
+                                  onChange={(e) => handleUpdateAttribute(typeDef.key, idx, e.target.value)}
+                                  placeholder="Attribute name"
+                                  className={cn("h-8 text-sm font-serif", isProtected && "bg-muted/50")}
+                                  disabled={isProtected}
+                                />
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className={cn(
+                                    "h-8 px-2 shrink-0",
+                                    isProtected 
+                                      ? "text-muted-foreground/30 cursor-not-allowed" 
+                                      : "text-muted-foreground hover:text-destructive"
+                                  )}
+                                  onClick={() => handleRemoveAttribute(typeDef.key, idx)}
+                                  disabled={isProtected}
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            );
+                          })}
                           <Button
                             variant="outline"
                             size="sm"
