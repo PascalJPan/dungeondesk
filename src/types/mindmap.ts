@@ -151,7 +151,7 @@ export interface PromptSettings {
 export const DEFAULT_PROMPT_SETTINGS: PromptSettings = {
   contentLanguage: 'English',
   tone: 'High Fantasy',
-  inferLevel: 1, // Never by default
+  inferLevel: 3, // Sometimes by default
 };
 
 export const INFER_LEVEL_LABELS: Record<number, string> = {

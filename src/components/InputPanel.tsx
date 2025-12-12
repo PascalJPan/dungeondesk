@@ -119,6 +119,13 @@ When referencing the same entity, ALWAYS use the exact same name throughout.
 For long description fields (longDescription, background, etc.):
 - Use line breaks between paragraphs for readability
 - Separate distinct topics or sections with blank lines
+- Detailed descriptions (longDescription, background) should be at least 3 sentences
+- If not enough material for 3 sentences AND inference level is low, leave the field empty instead
+
+## Detailed Description Length:
+- "longDescription", "background", and similar in-depth fields: minimum 3 sentences or leave empty
+- If inference is enabled (Sometimes/Often/Always), you may expand brief mentions into fuller descriptions
+- Prefer quality over quantity - a well-written 3-sentence description is better than padding
 
 ## Handling Missing Information:
 ${missingDataGuidance}

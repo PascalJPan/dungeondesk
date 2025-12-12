@@ -81,11 +81,6 @@ export function TableView({ data, entityTypes, onEntitySelect, selectedEntityId 
 
   return (
     <div className="h-full flex flex-col p-4">
-      <div className="text-center mb-4">
-        <h2 className="font-display text-lg text-foreground">DM Table</h2>
-        <p className="text-xs text-muted-foreground font-serif">Place important entities for quick reference</p>
-      </div>
-      
       <div className="flex-1 overflow-auto">
         <div 
           className="grid gap-2 min-w-max"
