@@ -100,7 +100,7 @@ export function EntityEditor({ entity, data, onClose, onSave, onDelete }: Entity
 
       return (
         <div key={field.key} className="space-y-2">
-          <Label className="text-xs font-mono uppercase text-muted-foreground">
+          <Label className="text-xs font-mono uppercase text-muted-foreground tracking-wider">
             {field.label}
           </Label>
           
@@ -157,23 +157,23 @@ export function EntityEditor({ entity, data, onClose, onSave, onDelete }: Entity
 
     return (
       <div key={field.key} className="space-y-2">
-        <Label className="text-xs font-mono uppercase text-muted-foreground flex items-center gap-2">
+        <Label className="text-xs font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-2">
           {field.label}
-          {!value && <span className="text-destructive/70 text-[10px]">(empty)</span>}
+          {!value && <span className="text-destructive/70 text-[10px] font-serif normal-case">(empty)</span>}
         </Label>
         {field.type === 'textarea' ? (
           <Textarea
             value={value}
             onChange={(e) => handleFieldChange(field.key, e.target.value)}
             placeholder={`Enter ${field.label.toLowerCase()}...`}
-            className="min-h-[80px] text-sm resize-none"
+            className="min-h-[80px] text-sm resize-none font-serif"
           />
         ) : (
           <Input
             value={value}
             onChange={(e) => handleFieldChange(field.key, e.target.value)}
             placeholder={`Enter ${field.label.toLowerCase()}...`}
-            className="text-sm"
+            className="text-sm font-serif"
           />
         )}
       </div>
@@ -194,7 +194,7 @@ export function EntityEditor({ entity, data, onClose, onSave, onDelete }: Entity
               <Input
                 value={editedEntity.name}
                 onChange={(e) => handleFieldChange('name', e.target.value)}
-                className="font-mono font-semibold text-foreground h-7 px-2"
+                className="font-display text-foreground h-7 px-2 text-lg"
                 placeholder="Entity name"
               />
             </div>
@@ -220,14 +220,14 @@ export function EntityEditor({ entity, data, onClose, onSave, onDelete }: Entity
 
       {/* Actions */}
       <div className="p-4 border-t border-border space-y-2">
-        <Button className="w-full" onClick={handleSave}>
+        <Button className="w-full font-serif" onClick={handleSave}>
           <Save className="w-4 h-4 mr-2" />
           Save Changes
         </Button>
         {onDelete && (
           <Button 
             variant="outline" 
-            className="w-full text-destructive hover:text-destructive"
+            className="w-full text-destructive hover:text-destructive font-serif"
             onClick={() => onDelete(entity.id)}
           >
             <Trash2 className="w-4 h-4 mr-2" />

@@ -16,7 +16,7 @@ export function QuestionsPanel({ data, onSelectField }: QuestionsPanelProps) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
         <HelpCircle className="w-10 h-10 mb-4 opacity-50" />
-        <p className="text-sm text-center">
+        <p className="text-sm text-center font-serif italic">
           Extract campaign data to see missing fields
         </p>
       </div>
@@ -40,10 +40,10 @@ export function QuestionsPanel({ data, onSelectField }: QuestionsPanelProps) {
         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
           <span className="text-2xl">✅</span>
         </div>
-        <p className="text-sm text-center font-medium text-foreground">
+        <p className="text-sm text-center font-medium text-foreground font-serif">
           All fields filled!
         </p>
-        <p className="text-xs text-center mt-1">
+        <p className="text-xs text-center mt-1 font-serif">
           Your campaign data is complete
         </p>
       </div>
@@ -55,12 +55,12 @@ export function QuestionsPanel({ data, onSelectField }: QuestionsPanelProps) {
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2 mb-1">
-          <AlertCircle className="w-4 h-4 text-amber-500" />
-          <h3 className="font-mono font-semibold text-foreground">
+          <AlertCircle className="w-4 h-4 text-primary" />
+          <h3 className="font-display text-foreground">
             Missing Information
           </h3>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground font-serif">
           {emptyFields.length} empty field{emptyFields.length !== 1 ? 's' : ''} across {Object.keys(groupedByEntity).length} entit{Object.keys(groupedByEntity).length !== 1 ? 'ies' : 'y'}
         </p>
       </div>
@@ -79,7 +79,7 @@ export function QuestionsPanel({ data, onSelectField }: QuestionsPanelProps) {
                     className="w-2 h-2 rounded-full"
                     style={{ backgroundColor: typeInfo.color }}
                   />
-                  <span className="font-medium text-sm">{firstField.entityName}</span>
+                  <span className="font-medium text-sm font-serif">{firstField.entityName}</span>
                   <Badge variant="outline" className="text-[10px]">
                     {fields.length} missing
                   </Badge>
@@ -95,7 +95,7 @@ export function QuestionsPanel({ data, onSelectField }: QuestionsPanelProps) {
                         "bg-muted/30 hover:bg-muted/50 transition-colors text-left"
                       )}
                     >
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm text-muted-foreground font-serif">
                         {field.fieldLabel}
                       </span>
                       <ArrowRight className="w-4 h-4 text-muted-foreground" />

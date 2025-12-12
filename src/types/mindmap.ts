@@ -123,13 +123,13 @@ export const ENTITY_FIELDS: Record<EntityType, EntityFieldDef[]> = {
   ],
 };
 
-// Entity type display info
+// Entity type display info - ink/parchment theme colors
 export const ENTITY_TYPE_INFO: Record<EntityType, { label: string; color: string; icon: string }> = {
-  location: { label: 'Locations', color: '#10b981', icon: '📍' },
-  happening: { label: 'Happenings', color: '#f59e0b', icon: '⚡' },
-  character: { label: 'Characters', color: '#3b82f6', icon: '👤' },
-  monster: { label: 'Monsters', color: '#ef4444', icon: '👹' },
-  item: { label: 'Items', color: '#8b5cf6', icon: '🗡️' },
+  location: { label: 'Locations', color: '#5d8a66', icon: '📍' },
+  happening: { label: 'Happenings', color: '#b08d57', icon: '⚡' },
+  character: { label: 'Characters', color: '#6b7fa3', icon: '👤' },
+  monster: { label: 'Monsters', color: '#a35d5d', icon: '👹' },
+  item: { label: 'Items', color: '#7d6b99', icon: '🗡️' },
 };
 
 // Campaign data structure
@@ -147,9 +147,25 @@ export interface EmptyField {
   fieldLabel: string;
 }
 
+// Custom attribute definition
+export interface CustomAttribute {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea';
+}
+
 // Extraction options
 export interface ExtractionOptions {
   entityTypes: EntityType[];
+  customAttributes?: Record<EntityType, CustomAttribute[]>;
+}
+
+// Campaign export format
+export interface CampaignExport {
+  version: string;
+  exportedAt: string;
+  customAttributes?: Record<EntityType, CustomAttribute[]>;
+  entities: CampaignEntity[];
 }
 
 // Processing state

@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { Map, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, LayoutGrid, Download } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
 import { EntityEditor } from '@/components/EntityEditor';
+import { EntityReader } from '@/components/EntityReader';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { CampaignGraph } from '@/components/CampaignGraph';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,8 @@ import {
   ExtractionOptions,
   EntityType,
   createEmptyEntity,
+  CampaignExport,
+  CustomAttribute,
 } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -21,11 +24,12 @@ import { toast } from '@/hooks/use-toast';
 export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [activeRightTab, setActiveRightTab] = useState<'edit' | 'questions'>('edit');
+  const [activeRightTab, setActiveRightTab] = useState<'read' | 'edit' | 'questions'>('read');
   const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph');
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
+  const [customAttributes, setCustomAttributes] = useState<Record<EntityType, CustomAttribute[]> | null>(null);
   
   const [processingState, setProcessingState] = useState<ProcessingState>({
     status: 'idle',
@@ -39,8 +43,12 @@ export default function Index() {
   ) => {
     const startTime = Date.now();
     
+    // Store custom attributes for later use
+    if (extractionOptions.customAttributes) {
+      setCustomAttributes(extractionOptions.customAttributes);
+    }
+    
     try {
-      // Step 1: Extract entities
       setProcessingState({
         status: 'extracting',
         progress: 20,
@@ -71,7 +79,6 @@ export default function Index() {
       });
 
       const result = await response.json();
-
       const processingTime = Date.now() - startTime;
 
       setCampaignData({
@@ -101,10 +108,48 @@ export default function Index() {
     }
   }, []);
 
+  const handleImport = useCallback((data: CampaignExport) => {
+    setCampaignData({
+      entities: data.entities,
+      processingTime: 0,
+    });
+    if (data.customAttributes) {
+      setCustomAttributes(data.customAttributes);
+    }
+    toast({
+      title: "Campaign imported",
+      description: `Loaded ${data.entities.length} entities`,
+    });
+  }, []);
+
+  const handleExport = useCallback(() => {
+    if (!campaignData) return;
+    
+    const exportData: CampaignExport = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      customAttributes: customAttributes || undefined,
+      entities: campaignData.entities,
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `campaign-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Campaign exported",
+      description: "JSON file downloaded",
+    });
+  }, [campaignData, customAttributes]);
+
   const handleEntitySelect = useCallback((entity: CampaignEntity | null) => {
     setSelectedEntity(entity);
     if (entity) {
-      setActiveRightTab('edit');
+      setActiveRightTab('read');
       if (!rightPanelOpen) setRightPanelOpen(true);
     }
   }, [rightPanelOpen]);
@@ -130,7 +175,6 @@ export default function Index() {
     setCampaignData(prev => {
       if (!prev) return prev;
       
-      // Remove entity and clean up relations
       const newEntities = prev.entities
         .filter(e => e.id !== entityId)
         .map(entity => {
@@ -181,14 +225,14 @@ export default function Index() {
   }, [campaignData, rightPanelOpen]);
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-screen flex flex-col bg-background overflow-hidden ink-texture">
       {/* Header */}
-      <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
+      <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0 bg-card/50">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-            <Map className="w-5 h-5 text-primary" />
+            <BookOpen className="w-5 h-5 text-primary" />
           </div>
-          <h1 className="font-mono font-semibold text-lg text-foreground">
+          <h1 className="font-display text-xl text-foreground tracking-wide">
             Campaign Editor
           </h1>
         </div>
@@ -197,6 +241,7 @@ export default function Index() {
             variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('graph')}
+            className="font-serif"
           >
             <LayoutGrid className="w-4 h-4 mr-1" />
             Graph
@@ -205,6 +250,7 @@ export default function Index() {
             variant={viewMode === 'list' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setViewMode('list')}
+            className="font-serif"
           >
             <List className="w-4 h-4 mr-1" />
             List
@@ -221,7 +267,15 @@ export default function Index() {
             leftPanelOpen ? "w-80" : "w-0"
           )}
         >
-          {leftPanelOpen && <InputPanel onProcess={handleProcess} processingState={processingState} />}
+          {leftPanelOpen && (
+            <InputPanel 
+              onProcess={handleProcess} 
+              onImport={handleImport}
+              onExport={handleExport}
+              processingState={processingState}
+              hasData={!!campaignData}
+            />
+          )}
         </aside>
 
         {/* Left Panel Toggle */}
@@ -270,7 +324,7 @@ export default function Index() {
           )}
         </Button>
 
-        {/* Right Panel - Edit & Questions */}
+        {/* Right Panel - Read, Edit & Questions */}
         <aside 
           className={cn(
             "border-l border-border bg-card transition-all duration-300 shrink-0 flex flex-col",
@@ -280,25 +334,39 @@ export default function Index() {
           {rightPanelOpen && (
             <Tabs 
               value={activeRightTab} 
-              onValueChange={(v) => setActiveRightTab(v as 'edit' | 'questions')}
+              onValueChange={(v) => setActiveRightTab(v as 'read' | 'edit' | 'questions')}
               className="flex flex-col h-full"
             >
               <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent p-0 h-auto shrink-0">
                 <TabsTrigger 
+                  value="read"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
+                >
+                  <BookOpen className="w-4 h-4 mr-1" />
+                  Read
+                </TabsTrigger>
+                <TabsTrigger 
                   value="edit"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
                 >
                   <Pencil className="w-4 h-4 mr-1" />
                   Edit
                 </TabsTrigger>
                 <TabsTrigger 
                   value="questions"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
                 >
                   <HelpCircle className="w-4 h-4 mr-1" />
                   Questions
                 </TabsTrigger>
               </TabsList>
+              <TabsContent value="read" className="flex-1 m-0 min-h-0">
+                <EntityReader 
+                  entity={selectedEntity}
+                  data={campaignData}
+                  onClose={() => setSelectedEntity(null)}
+                />
+              </TabsContent>
               <TabsContent value="edit" className="flex-1 m-0 min-h-0">
                 <EntityEditor 
                   entity={selectedEntity}
