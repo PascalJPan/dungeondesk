@@ -15,7 +15,8 @@ interface EntityListProps {
 }
 
 export function EntityList({ data, entityTypes, selectedEntityId, onSelectEntity, onAddEntity }: EntityListProps) {
-  const [openSections, setOpenSections] = React.useState<string[]>(entityTypes.map(t => t.key));
+  // Start with all sections collapsed
+  const [openSections, setOpenSections] = React.useState<string[]>([]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => 

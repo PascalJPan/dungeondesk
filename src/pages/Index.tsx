@@ -23,6 +23,19 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
+// Combat tracker state (lifted to persist across tab changes)
+interface CombatantState {
+  currentHP: number;
+  initiative: number;
+}
+
+// Table view state (lifted to persist across tab changes)
+interface PlacedCard {
+  entityId: string;
+  row: number;
+  col: number;
+}
+
 export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -32,6 +45,14 @@ export default function Index() {
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
   const [entityTypes, setEntityTypes] = useState<EntityTypeDef[]>(DEFAULT_ENTITY_TYPES);
+  
+  // Combat tracker state (persisted)
+  const [combatants, setCombatants] = useState<Record<string, CombatantState>>({});
+  const [activeCombatantIds, setActiveCombatantIds] = useState<Set<string>>(new Set());
+  const [combatRound, setCombatRound] = useState(1);
+  
+  // Table view state (persisted)
+  const [placedCards, setPlacedCards] = useState<PlacedCard[]>([]);
   
   const [processingState, setProcessingState] = useState<ProcessingState>({
     status: 'idle',
@@ -439,6 +460,12 @@ export default function Index() {
               entityTypes={entityTypes}
               onEntitySelect={handleEntitySelect}
               selectedEntityId={selectedEntity?.id || null}
+              combatants={combatants}
+              setCombatants={setCombatants}
+              activeCombatantIds={activeCombatantIds}
+              setActiveCombatantIds={setActiveCombatantIds}
+              round={combatRound}
+              setRound={setCombatRound}
             />
           ) : viewMode === 'table' ? (
             <TableView
@@ -446,6 +473,8 @@ export default function Index() {
               entityTypes={entityTypes}
               onEntitySelect={handleEntitySelect}
               selectedEntityId={selectedEntity?.id || null}
+              placedCards={placedCards}
+              setPlacedCards={setPlacedCards}
             />
           ) : (
             <NodeGraph

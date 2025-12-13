@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -12,10 +12,11 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Plus } from 'lucide-react';
+import { Plus, Lock, Unlock } from 'lucide-react';
 import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Toggle } from '@/components/ui/toggle';
 
 interface NodeGraphProps {
   data: CampaignData | null;
@@ -75,6 +76,8 @@ export function NodeGraph({
   selectedEntityId,
   onAddEntity,
 }: NodeGraphProps) {
+  // Default interactivity to OFF (nodes locked)
+  const [interactivityEnabled, setInteractivityEnabled] = useState(false);
   
   // Build connections and count
   const { connectionMap, connectionCounts } = useMemo(() => {
@@ -289,14 +292,35 @@ export function NodeGraph({
 
   return (
     <div className="h-full relative">
+      {/* Interactivity toggle */}
+      <div className="absolute top-4 right-4 z-10">
+        <Toggle
+          pressed={interactivityEnabled}
+          onPressedChange={setInteractivityEnabled}
+          aria-label="Toggle node interactivity"
+          className="bg-card border border-border"
+        >
+          {interactivityEnabled ? (
+            <Unlock className="w-4 h-4 mr-1" />
+          ) : (
+            <Lock className="w-4 h-4 mr-1" />
+          )}
+          <span className="text-xs font-serif">
+            {interactivityEnabled ? 'Unlocked' : 'Locked'}
+          </span>
+        </Toggle>
+      </div>
+      
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={interactivityEnabled ? onNodesChange : undefined}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
+        nodesDraggable={interactivityEnabled}
+        nodesConnectable={false}
         fitView
         fitViewOptions={{ padding: 0.4 }}
         minZoom={0.1}
