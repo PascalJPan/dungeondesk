@@ -197,19 +197,20 @@ export function NodeGraph({
       });
     });
     
-    // Pull connected entities closer together
-    const iterations = 3;
+    // Pull connected entities closer together - stronger pull based on connection count
+    const iterations = 8;
     for (let iter = 0; iter < iterations; iter++) {
       filteredConnectionMap.forEach((connected, entityId) => {
         const pos = positions.get(entityId);
         if (!pos) return;
         
+        const connCount = connected.size;
         connected.forEach(targetId => {
           const targetPos = positions.get(targetId);
           if (!targetPos) return;
           
-          // Calculate midpoint pull (very subtle)
-          const pullStrength = 0.05;
+          // Stronger pull based on number of connections
+          const pullStrength = 0.15 + (connCount * 0.05);
           const midX = (pos.x + targetPos.x) / 2;
           const midY = (pos.y + targetPos.y) / 2;
           
@@ -240,21 +241,30 @@ export function NodeGraph({
       });
     });
 
-    // Build edges with smoothstep type for S-shaped curves
+    // Build edges with bezier curves
     const edges: Edge[] = [];
     const addedEdges = new Set<string>();
+    
+    // Check if edge connects to selected entity
+    const isSelectedEdge = (sourceId: string, targetId: string) => {
+      return selectedEntityId && (sourceId === selectedEntityId || targetId === selectedEntityId);
+    };
     
     filteredConnectionMap.forEach((connected, entityId) => {
       connected.forEach(targetId => {
         const edgeKey = [entityId, targetId].sort().join('-');
         if (!addedEdges.has(edgeKey)) {
           addedEdges.add(edgeKey);
+          const isHighlighted = isSelectedEdge(entityId, targetId);
           edges.push({
             id: edgeKey,
             source: entityId,
             target: targetId,
-            style: { stroke: 'hsl(var(--muted-foreground) / 0.3)', strokeWidth: 1.5 },
-            type: 'smoothstep',
+            style: { 
+              stroke: isHighlighted ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground) / 0.3)', 
+              strokeWidth: isHighlighted ? 3 : 1.5,
+            },
+            type: 'default',
           });
         }
       });
@@ -358,11 +368,6 @@ export function NodeGraph({
       >
         <Background color="hsl(var(--border))" gap={30} size={1} />
         <Controls className="!bg-card !border-border" />
-        <MiniMap 
-          nodeColor={(node) => node.data?.color || 'hsl(var(--primary))'}
-          maskColor="hsl(var(--background) / 0.8)"
-          className="!bg-card"
-        />
       </ReactFlow>
       
       {/* Type filter buttons at bottom center */}
