@@ -462,6 +462,25 @@ function NodeGraphInner({
     }
   }, [connectionMode]);
 
+  // Visible types (inverse of hidden)
+  const visibleTypes = useMemo(() => {
+    const allTypes = new Set(entityTypes.map(t => t.key));
+    hiddenTypes.forEach(t => allTypes.delete(t));
+    return allTypes;
+  }, [entityTypes, hiddenTypes]);
+
+  const toggleTypeVisibility = useCallback((typeKey: string) => {
+    setHiddenTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(typeKey)) {
+        next.delete(typeKey);
+      } else {
+        next.add(typeKey);
+      }
+      return next;
+    });
+  }, []);
+
   // Get unique entity types from data
   const presentTypes = useMemo(() => {
     if (!data) return [];
@@ -519,24 +538,6 @@ function NodeGraphInner({
         proOptions={{ hideAttribution: true }}
       />
       
-      {/* Connection mode button - bottom left */}
-      {onConnectionCreate && (
-        <div className="absolute bottom-4 left-4 z-10">
-          <Button
-            variant={connectionMode ? "default" : "outline"}
-            size="icon"
-            onClick={toggleConnectionMode}
-            className={cn(
-              "h-8 w-8",
-              connectionMode && "bg-primary text-primary-foreground"
-            )}
-            title={connectionMode ? (connectionSource ? "Select target..." : "Select source...") : "Connect entities"}
-          >
-            <Link2 className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-      
       {/* Selected edge hint */}
       {selectedEdgeId && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-card/90 backdrop-blur-sm border border-border rounded-lg px-3 py-1.5 text-xs font-serif text-muted-foreground">
@@ -544,15 +545,15 @@ function NodeGraphInner({
         </div>
       )}
       
-      {/* Type filter buttons at bottom center */}
+      {/* Type filter buttons and connect button at bottom center */}
       {presentTypes.length > 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex gap-2 bg-card/80 backdrop-blur-sm border border-border rounded-lg p-2">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-card/80 backdrop-blur-sm border border-border rounded-lg p-2">
           {presentTypes.map(typeDef => {
             const isHidden = hiddenTypes.has(typeDef.key);
             return (
               <button
                 key={typeDef.key}
-                onClick={() => toggleTypeFilter(typeDef.key)}
+                onClick={() => toggleTypeVisibility(typeDef.key)}
                 className={cn(
                   "w-6 h-6 rounded-full border-2 transition-all duration-200",
                   isHidden ? "opacity-30 scale-90" : "opacity-100 scale-100 hover:scale-110"
@@ -565,6 +566,23 @@ function NodeGraphInner({
               />
             );
           })}
+          {onConnectionCreate && (
+            <>
+              <div className="w-px h-5 bg-border" />
+              <button
+                onClick={toggleConnectionMode}
+                className={cn(
+                  "w-6 h-6 rounded-full border-2 transition-all duration-200 flex items-center justify-center",
+                  connectionMode 
+                    ? "bg-primary border-white scale-110" 
+                    : "bg-muted border-transparent hover:scale-110 hover:border-white"
+                )}
+                title={connectionMode ? (connectionSource ? "Select target..." : "Select source...") : "Connect entities"}
+              >
+                <Link2 className={cn("w-3.5 h-3.5", connectionMode ? "text-primary-foreground" : "text-foreground")} />
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
