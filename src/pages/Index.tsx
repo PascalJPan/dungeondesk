@@ -462,13 +462,13 @@ export default function Index() {
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 h-auto rounded-none border-r border-border hover:bg-muted z-20"
+          className="shrink-0 h-auto w-4 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20"
           onClick={() => setLeftPanelOpen(!leftPanelOpen)}
         >
           {leftPanelOpen ? (
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3 h-3" />
           ) : (
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3 h-3" />
           )}
         </Button>
 
@@ -519,13 +519,13 @@ export default function Index() {
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 h-auto rounded-none border-l border-border hover:bg-muted z-20"
+          className="shrink-0 h-auto w-4 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20"
           onClick={() => setRightPanelOpen(!rightPanelOpen)}
         >
           {rightPanelOpen ? (
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3 h-3" />
           ) : (
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3 h-3" />
           )}
         </Button>
 
@@ -533,7 +533,7 @@ export default function Index() {
         <aside 
           className={cn(
             "border-l border-border bg-card transition-all duration-300 shrink-0 flex flex-col z-20",
-            rightPanelOpen ? "w-96" : "w-0"
+            rightPanelOpen ? "w-[50vw]" : "w-0"
           )}
         >
           {rightPanelOpen && (
