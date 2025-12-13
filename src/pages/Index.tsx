@@ -473,7 +473,7 @@ export default function Index() {
         </Button>
 
         {/* Main Area */}
-        <main className="flex-1 min-w-0 relative">
+        <main className="flex-1 min-w-0 relative z-0">
           {viewMode === 'list' ? (
             <EntityList
               data={campaignData}
@@ -519,7 +519,7 @@ export default function Index() {
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 h-auto rounded-none border-l border-border hover:bg-muted"
+          className="shrink-0 h-auto rounded-none border-l border-border hover:bg-muted z-20"
           onClick={() => setRightPanelOpen(!rightPanelOpen)}
         >
           {rightPanelOpen ? (
@@ -532,7 +532,7 @@ export default function Index() {
         {/* Right Panel - Read, Edit & Questions */}
         <aside 
           className={cn(
-            "border-l border-border bg-card transition-all duration-300 shrink-0 flex flex-col",
+            "border-l border-border bg-card transition-all duration-300 shrink-0 flex flex-col z-20",
             rightPanelOpen ? "w-96" : "w-0"
           )}
         >
