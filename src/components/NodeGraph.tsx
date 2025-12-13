@@ -34,7 +34,21 @@ function CircleNode({ data }: NodeProps<{ entity: CampaignEntity; color: string;
     <>
       <Handle type="target" position={Position.Top} className="opacity-0" />
       <Handle type="target" position={Position.Left} className="opacity-0" />
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center relative">
+        {/* Label positioned above the circle */}
+        <span 
+          className="text-[10px] font-serif text-center max-w-[120px] leading-tight absolute z-10"
+          style={{ 
+            color: 'hsl(var(--foreground))',
+            textShadow: '0 1px 3px hsl(var(--background)), 0 0 6px hsl(var(--background))',
+            top: -20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {data.entity.name.length > 30 ? data.entity.name.slice(0, 28) + '...' : data.entity.name}
+        </span>
         <div
           className={cn(
             "rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer",
@@ -49,15 +63,6 @@ function CircleNode({ data }: NodeProps<{ entity: CampaignEntity; color: string;
             boxShadow: `0 4px ${data.isSelected ? 20 : 10}px ${data.color}40`,
           }}
         />
-        <span 
-          className="text-[10px] font-serif text-center mt-1 max-w-[120px] leading-tight"
-          style={{ 
-            color: 'hsl(var(--foreground))',
-            textShadow: '0 1px 2px hsl(var(--background))',
-          }}
-        >
-          {data.entity.name.length > 30 ? data.entity.name.slice(0, 28) + '...' : data.entity.name}
-        </span>
       </div>
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
       <Handle type="source" position={Position.Right} className="opacity-0" />
@@ -200,8 +205,12 @@ function NodeGraphInner({
       });
     });
     
-    // Pull connected entities closer together - stronger pull based on connection count
-    const iterations = 8;
+    // Pull connected entities closer together
+    // Base pull strength decreases with more total connections to prevent cramping
+    const totalConnections = Array.from(filteredConnectionMap.values()).reduce((sum, set) => sum + set.size, 0);
+    const basePullStrength = Math.max(0.03, 0.12 - (totalConnections * 0.002));
+    
+    const iterations = 6;
     for (let iter = 0; iter < iterations; iter++) {
       filteredConnectionMap.forEach((connected, entityId) => {
         const pos = positions.get(entityId);
@@ -212,8 +221,8 @@ function NodeGraphInner({
           const targetPos = positions.get(targetId);
           if (!targetPos) return;
           
-          // Stronger pull based on number of connections
-          const pullStrength = 0.15 + (connCount * 0.05);
+          // More connections for this node = stronger pull, but base is dampened by overall count
+          const pullStrength = basePullStrength + (connCount * 0.02);
           const midX = (pos.x + targetPos.x) / 2;
           const midY = (pos.y + targetPos.y) / 2;
           
