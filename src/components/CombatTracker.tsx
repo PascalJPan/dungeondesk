@@ -23,7 +23,6 @@ interface CombatTrackerProps {
   entityTypes: EntityTypeDef[];
   onEntitySelect: (entity: CampaignEntity | null) => void;
   selectedEntityId: string | null;
-  autoAddCharacters?: boolean;
   // Lifted state
   combatants: Record<string, CombatantState>;
   setCombatants: React.Dispatch<React.SetStateAction<Record<string, CombatantState>>>;
@@ -38,7 +37,6 @@ export function CombatTracker({
   entityTypes, 
   onEntitySelect, 
   selectedEntityId, 
-  autoAddCharacters = true,
   combatants,
   setCombatants,
   activeCombatantIds,
@@ -47,25 +45,11 @@ export function CombatTracker({
   setRound,
 }: CombatTrackerProps) {
   const [showAddDialog, setShowAddDialog] = React.useState(false);
-  const [initialized, setInitialized] = React.useState(false);
 
   // Get entities that have combat stats (monsters and characters)
   const allCombatEntities = data?.entities.filter(
     e => e.type === 'monster' || e.type === 'character'
   ) || [];
-
-  // Initialize with characters if autoAddCharacters is enabled
-  React.useEffect(() => {
-    if (!initialized && autoAddCharacters && data) {
-      const characterIds = data.entities
-        .filter(e => e.type === 'character')
-        .map(e => e.id);
-      if (characterIds.length > 0 && activeCombatantIds.size === 0) {
-        setActiveCombatantIds(new Set(characterIds));
-      }
-      setInitialized(true);
-    }
-  }, [data, autoAddCharacters, initialized, activeCombatantIds.size, setActiveCombatantIds]);
 
   // Only show entities that are in active combat
   const combatEntities = allCombatEntities.filter(e => activeCombatantIds.has(e.id));
@@ -96,15 +80,7 @@ export function CombatTracker({
   const resetCombat = () => {
     setCombatants({});
     setRound(1);
-    // Keep only characters if autoAddCharacters is enabled
-    if (autoAddCharacters && data) {
-      const characterIds = data.entities
-        .filter(e => e.type === 'character')
-        .map(e => e.id);
-      setActiveCombatantIds(new Set(characterIds));
-    } else {
-      setActiveCombatantIds(new Set());
-    }
+    setActiveCombatantIds(new Set());
   };
 
   const addToCombat = (entityId: string) => {
