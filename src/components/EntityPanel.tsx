@@ -225,12 +225,27 @@ export function EntityPanel({
     );
   };
 
+  const fieldRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [fieldHeights, setFieldHeights] = useState<Map<string, number>>(new Map());
+
+  // Measure field heights when not editing
+  useEffect(() => {
+    const heights = new Map<string, number>();
+    fieldRefs.current.forEach((el, key) => {
+      if (el) {
+        heights.set(key, el.offsetHeight);
+      }
+    });
+    setFieldHeights(heights);
+  }, [editedEntity, editingField]);
+
   const renderedFields = typeDef?.attributes
     .map(attr => {
       const value = editedEntity[attr.key] || '';
       const isAssociatedEntities = attr.key === 'associatedEntities';
       const isEditing = editingField === attr.key;
-      const isLongField = ['longDescription', 'description', 'notes', 'backstory', 'abilities'].includes(attr.key);
+      const measuredHeight = fieldHeights.get(attr.key) || 80;
+      const minHeight = Math.max(80, measuredHeight);
 
       return (
         <div key={attr.key} className="space-y-1.5">
@@ -245,14 +260,15 @@ export function EntityPanel({
               value={value}
               onChange={(e) => handleFieldChange(attr.key, e.target.value)}
               onBlur={() => handleFieldBlur(attr.key)}
-              className={cn(
-                "text-sm font-serif resize-y",
-                isLongField ? "min-h-[180px]" : "min-h-[80px]"
-              )}
+              className="text-sm font-serif resize-y"
+              style={{ minHeight: `${minHeight}px` }}
               placeholder={`Enter ${attr.label.toLowerCase()}...`}
             />
           ) : (
             <div
+              ref={(el) => {
+                if (el) fieldRefs.current.set(attr.key, el);
+              }}
               onClick={() => setEditingField(attr.key)}
               className={cn(
                 "text-sm font-serif leading-relaxed text-foreground whitespace-pre-wrap cursor-text rounded-md p-2 -m-2",
