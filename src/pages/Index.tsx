@@ -16,6 +16,8 @@ import {
   createEmptyEntity,
   CampaignExport,
   DEFAULT_ENTITY_TYPES,
+  PromptSettings,
+  DEFAULT_PROMPT_SETTINGS,
 } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -47,11 +49,12 @@ export default function Index() {
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
   const [entityTypes, setEntityTypes] = useState<EntityTypeDef[]>(DEFAULT_ENTITY_TYPES);
-  
+  const [promptSettings, setPromptSettings] = useState<PromptSettings>(DEFAULT_PROMPT_SETTINGS);
   // Combat tracker state (persisted)
   const [combatants, setCombatants] = useState<Record<string, CombatantState>>({});
   const [activeCombatantIds, setActiveCombatantIds] = useState<Set<string>>(new Set());
   const [combatRound, setCombatRound] = useState(1);
+  const [currentTurnId, setCurrentTurnId] = useState<string | null>(null);
   
   // Table view state (persisted)
   const [placedCards, setPlacedCards] = useState<PlacedCard[]>([]);
@@ -296,6 +299,11 @@ export default function Index() {
         setEntityTypes(data.entityTypes);
       }
     }
+
+    // Import prompt settings if present
+    if (data.promptSettings && !keepExisting) {
+      setPromptSettings(data.promptSettings);
+    }
     
     const addedCount = finalEntities.length - existingEntities.length;
     const fixedMsg = fixedCount > 0 ? ` (fixed ${fixedCount} duplicate IDs)` : '';
@@ -315,6 +323,7 @@ export default function Index() {
       exportedAt: new Date().toISOString(),
       entityTypes: entityTypes,
       entities: campaignData.entities,
+      promptSettings: promptSettings,
     };
     
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -329,7 +338,7 @@ export default function Index() {
       title: "Campaign exported",
       description: "JSON file downloaded",
     });
-  }, [campaignData, entityTypes]);
+  }, [campaignData, entityTypes, promptSettings]);
 
   const handleEntitySelect = useCallback((entity: CampaignEntity | null) => {
     setSelectedEntity(entity);
@@ -604,6 +613,8 @@ export default function Index() {
               existingEntities={campaignData?.entities || []}
               campaignData={campaignData}
               onSelectField={handleSelectField}
+              promptSettings={promptSettings}
+              onPromptSettingsChange={setPromptSettings}
             />
           )}
         </aside>
@@ -649,6 +660,8 @@ export default function Index() {
               setActiveCombatantIds={setActiveCombatantIds}
               round={combatRound}
               setRound={setCombatRound}
+              currentTurnId={currentTurnId}
+              setCurrentTurnId={setCurrentTurnId}
             />
           ) : viewMode === 'table' ? (
             <TableView

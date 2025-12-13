@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sword, Shield, Heart, Footprints, Plus, Minus, RotateCcw, UserPlus, X } from 'lucide-react';
+import { Sword, Shield, Heart, Footprints, Plus, Minus, RotateCcw, UserPlus, X, Dices, ChevronRight } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,8 @@ interface CombatTrackerProps {
   setActiveCombatantIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   round: number;
   setRound: React.Dispatch<React.SetStateAction<number>>;
+  currentTurnId: string | null;
+  setCurrentTurnId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export function CombatTracker({ 
@@ -43,6 +45,8 @@ export function CombatTracker({
   setActiveCombatantIds,
   round,
   setRound,
+  currentTurnId,
+  setCurrentTurnId,
 }: CombatTrackerProps) {
   const [showAddDialog, setShowAddDialog] = React.useState(false);
 
@@ -81,6 +85,7 @@ export function CombatTracker({
     setCombatants({});
     setRound(1);
     setActiveCombatantIds(new Set());
+    setCurrentTurnId(null);
     setShowAddDialog(false);
   };
 
@@ -99,6 +104,19 @@ export function CombatTracker({
       delete next[entityId];
       return next;
     });
+    // Reset turn if removed entity had turn
+    if (currentTurnId === entityId) {
+      setCurrentTurnId(null);
+    }
+  };
+
+  // Roll initiative for all monsters
+  const rollMonsterInitiative = () => {
+    const monsters = combatEntities.filter(e => e.type === 'monster');
+    monsters.forEach(monster => {
+      const roll = Math.floor(Math.random() * 20) + 1;
+      updateCombatant(monster.id, { initiative: roll });
+    });
   };
 
   const availableToAdd = allCombatEntities.filter(e => !activeCombatantIds.has(e.id));
@@ -110,6 +128,26 @@ export function CombatTracker({
     return initB - initA;
   });
 
+  // Next turn handler
+  const handleNextTurn = () => {
+    if (sortedCombatants.length === 0) return;
+    
+    if (!currentTurnId) {
+      // Start with first combatant
+      setCurrentTurnId(sortedCombatants[0].id);
+      return;
+    }
+    
+    const currentIndex = sortedCombatants.findIndex(c => c.id === currentTurnId);
+    if (currentIndex === -1 || currentIndex === sortedCombatants.length - 1) {
+      // Go back to first, increment round
+      setCurrentTurnId(sortedCombatants[0].id);
+      setRound(r => r + 1);
+    } else {
+      setCurrentTurnId(sortedCombatants[currentIndex + 1].id);
+    }
+  };
+
   if (!data || allCombatEntities.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
@@ -120,6 +158,8 @@ export function CombatTracker({
       </div>
     );
   }
+
+  const hasMonsters = combatEntities.some(e => e.type === 'monster');
 
   return (
     <div className="h-full flex flex-col">
@@ -185,11 +225,18 @@ export function CombatTracker({
               </ScrollArea>
             </DialogContent>
           </Dialog>
+          {hasMonsters && (
+            <Button variant="outline" size="sm" onClick={rollMonsterInitiative} title="Roll initiative for all monsters">
+              <Dices className="w-4 h-4 mr-1" />
+              Roll Monsters
+            </Button>
+          )}
           <Badge variant="outline" className="font-mono">
             Round {round}
           </Badge>
-          <Button variant="ghost" size="sm" onClick={() => setRound(r => r + 1)}>
-            Next Round
+          <Button variant="outline" size="sm" onClick={handleNextTurn} title="Next turn">
+            <ChevronRight className="w-4 h-4 mr-1" />
+            Next Turn
           </Button>
           <Button variant="ghost" size="icon" onClick={resetCombat} title="Reset Combat">
             <RotateCcw className="w-4 h-4" />
@@ -212,18 +259,22 @@ export function CombatTracker({
             const maxHP = parseInt(entity.healthPoints) || 0;
             const hpPercent = maxHP > 0 ? (state.currentHP / maxHP) * 100 : 100;
             const isSelected = entity.id === selectedEntityId;
+            const isCurrentTurn = entity.id === currentTurnId;
             const ac = entity.armorClass || '—';
             const speed = entity.speed || '—';
 
             return (
             <Card 
                 key={`combat-${entity.id}`}
-                className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary' : 'hover:bg-muted/50'}`}
+                className={`cursor-pointer transition-all ${isCurrentTurn ? 'ring-2 ring-primary bg-primary/5' : ''} ${isSelected && !isCurrentTurn ? 'ring-2 ring-muted-foreground' : 'hover:bg-muted/50'}`}
                 onClick={() => onEntitySelect(entity)}
               >
                 <CardHeader className="p-3 pb-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
+                      {isCurrentTurn && (
+                        <ChevronRight className="w-4 h-4 text-primary shrink-0" />
+                      )}
                       <span 
                         className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: color }}
