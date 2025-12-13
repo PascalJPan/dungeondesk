@@ -50,9 +50,11 @@ export function EntityPanel({
   const [editedEntity, setEditedEntity] = useState<CampaignEntity | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [fieldHeights, setFieldHeights] = useState<Map<string, number>>(new Map());
   const nameInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const prevEntityIdRef = useRef<string | null>(null);
+  const fieldRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     if (entity) {
@@ -225,8 +227,7 @@ export function EntityPanel({
     );
   };
 
-  const fieldRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const [fieldHeights, setFieldHeights] = useState<Map<string, number>>(new Map());
+  // Measure field heights when not editing
 
   // Measure field heights when not editing
   useEffect(() => {
