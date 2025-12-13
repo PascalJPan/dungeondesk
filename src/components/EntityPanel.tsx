@@ -49,20 +49,15 @@ export function EntityPanel({
 }: EntityPanelProps) {
   const [editedEntity, setEditedEntity] = useState<CampaignEntity | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [editingFieldHeight, setEditingFieldHeight] = useState<number>(80);
-  const nameInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const prevEntityIdRef = useRef<string | null>(null);
-  const fieldRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     if (entity) {
       setEditedEntity({ ...entity });
       
-      // Only scroll to top and reset editing when switching to a different entity
+      // Only scroll to top when switching to a different entity
       if (prevEntityIdRef.current !== entity.id) {
-        setEditingField(null);
         if (scrollAreaRef.current) {
           const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
           if (viewport) {
@@ -76,15 +71,6 @@ export function EntityPanel({
       prevEntityIdRef.current = null;
     }
   }, [entity]);
-
-  // Function to start editing a field - captures height first
-  const startEditing = (fieldKey: string) => {
-    const el = fieldRefs.current.get(fieldKey);
-    if (el) {
-      setEditingFieldHeight(Math.max(80, el.offsetHeight));
-    }
-    setEditingField(fieldKey);
-  };
 
   if (!entity || !editedEntity) {
     return (
@@ -104,15 +90,7 @@ export function EntityPanel({
     setEditedEntity(prev => prev ? { ...prev, [key]: value } : null);
   };
 
-  const handleFieldBlur = (key: string) => {
-    setEditingField(null);
-    if (editedEntity) {
-      onSave(editedEntity);
-    }
-  };
-
-  const handleNameBlur = () => {
-    setEditingField(null);
+  const handleFieldBlur = () => {
     if (editedEntity) {
       onSave(editedEntity);
     }
@@ -241,7 +219,6 @@ export function EntityPanel({
     .map(attr => {
       const value = editedEntity[attr.key] || '';
       const isAssociatedEntities = attr.key === 'associatedEntities';
-      const isEditing = editingField === attr.key;
 
       return (
         <div key={attr.key} className="space-y-1.5">
@@ -250,30 +227,20 @@ export function EntityPanel({
           </h4>
           {isAssociatedEntities ? (
             renderAssociatedEntities(value)
-          ) : isEditing ? (
+          ) : (
             <Textarea
-              autoFocus
               value={value}
               onChange={(e) => handleFieldChange(attr.key, e.target.value)}
-              onBlur={() => handleFieldBlur(attr.key)}
-              className="text-sm font-serif resize-y"
-              style={{ minHeight: `${editingFieldHeight}px` }}
-              placeholder={`Enter ${attr.label.toLowerCase()}...`}
-            />
-          ) : (
-            <div
-              ref={(el) => {
-                if (el) fieldRefs.current.set(attr.key, el);
-              }}
-              onClick={() => startEditing(attr.key)}
+              onBlur={handleFieldBlur}
               className={cn(
-                "text-sm font-serif leading-relaxed text-foreground whitespace-pre-wrap cursor-text rounded-md p-2 -m-2",
-                "hover:bg-muted/30 transition-colors",
+                "text-sm font-serif leading-relaxed resize-none min-h-[2.5rem] p-0 border-0 bg-transparent shadow-none",
+                "focus-visible:ring-0 focus-visible:ring-offset-0",
+                "hover:bg-muted/30 focus:bg-muted/30 rounded-md transition-colors",
                 !value && "text-muted-foreground/50 italic"
               )}
-            >
-              {value || `Click to add ${attr.label.toLowerCase()}...`}
-            </div>
+              placeholder={`Add ${attr.label.toLowerCase()}...`}
+              rows={Math.max(1, (value.match(/\n/g) || []).length + 1)}
+            />
           )}
         </div>
       );
@@ -290,24 +257,17 @@ export function EntityPanel({
                 className="w-3 h-3 rounded-full shrink-0"
                 style={{ backgroundColor: color }}
               />
-              {editingField === 'name' ? (
-                <Input
-                  ref={nameInputRef}
-                  autoFocus
-                  value={editedEntity.name}
-                  onChange={(e) => handleFieldChange('name', e.target.value)}
-                  onBlur={handleNameBlur}
-                  className="font-serif font-semibold text-lg text-foreground h-7 px-2"
-                  placeholder="Entity name"
-                />
-              ) : (
-                <h2 
-                  onClick={() => setEditingField('name')}
-                  className="font-serif font-semibold text-lg text-foreground truncate cursor-text hover:bg-muted/30 rounded px-1 -mx-1 transition-colors"
-                >
-                  {editedEntity.name || 'Untitled'}
-                </h2>
-              )}
+              <Input
+                value={editedEntity.name}
+                onChange={(e) => handleFieldChange('name', e.target.value)}
+                onBlur={handleFieldBlur}
+                className={cn(
+                  "font-serif font-semibold text-lg text-foreground h-7 px-1 border-0 bg-transparent shadow-none",
+                  "focus-visible:ring-0 focus-visible:ring-offset-0",
+                  "hover:bg-muted/30 focus:bg-muted/30 rounded transition-colors"
+                )}
+                placeholder="Entity name"
+              />
             </div>
             <Badge 
               variant="outline"
