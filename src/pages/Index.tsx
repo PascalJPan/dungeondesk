@@ -273,13 +273,18 @@ export default function Index() {
     return { entities: fixedEntities, fixedCount };
   }, []);
 
-  const handleImport = useCallback((data: CampaignExport, keepExisting: boolean) => {
+  const handleImport = useCallback((
+    data: CampaignExport, 
+    keepEntities: boolean,
+    keepMetadata: boolean,
+    mergeTypes: boolean
+  ) => {
     const existingEntities = campaignData?.entities || [];
     
     // Fix duplicate IDs in imported data first
     const { entities: fixedImportedEntities, fixedCount } = fixDuplicateIds(data.entities);
     
-    let finalEntities = keepExisting 
+    let finalEntities = keepEntities 
       ? mergeEntities(existingEntities, fixedImportedEntities)
       : fixedImportedEntities;
     
@@ -291,40 +296,51 @@ export default function Index() {
       processingTime: 0,
     });
     
+    // Handle entity types based on mergeTypes flag
     if (data.entityTypes && data.entityTypes.length > 0) {
-      if (keepExisting) {
-        // Merge entity types
-        const merged = [...entityTypes];
-        data.entityTypes.forEach(newType => {
-          const existingIdx = merged.findIndex(t => t.key === newType.key);
-          if (existingIdx === -1) {
-            merged.push(newType);
+      if (mergeTypes) {
+        // Merge new types and attributes
+        const mergedTypes = [...entityTypes];
+        data.entityTypes.forEach(importedType => {
+          const existingIndex = mergedTypes.findIndex(t => t.key === importedType.key);
+          if (existingIndex === -1) {
+            // Add new type
+            mergedTypes.push(importedType);
+          } else {
+            // Merge attributes
+            const existingAttrKeys = new Set(mergedTypes[existingIndex].attributes.map(a => a.key));
+            const newAttrs = importedType.attributes.filter(a => !existingAttrKeys.has(a.key));
+            mergedTypes[existingIndex] = {
+              ...mergedTypes[existingIndex],
+              attributes: [...mergedTypes[existingIndex].attributes, ...newAttrs]
+            };
           }
         });
-        setEntityTypes(merged);
-      } else {
-        setEntityTypes(data.entityTypes);
+        setEntityTypes(mergedTypes);
       }
+      // If mergeTypes=false, keep existing entityTypes unchanged
     }
 
-    // Import prompt settings if present
-    if (data.promptSettings && !keepExisting) {
+    // Import prompt settings if present and not keeping metadata
+    if (data.promptSettings && !keepMetadata) {
       setPromptSettings(data.promptSettings);
     }
 
-    // Import campaign metadata if present
-    if (data.metadata && !keepExisting) {
-      setCampaignMetadata(data.metadata);
-    } else if (!keepExisting) {
-      // Reset to default metadata if not present in import
-      setCampaignMetadata({
-        ...DEFAULT_CAMPAIGN_METADATA,
-        createdAt: new Date().toISOString(),
-      });
+    // Import campaign metadata based on keepMetadata flag
+    if (!keepMetadata) {
+      if (data.metadata) {
+        setCampaignMetadata(data.metadata);
+      } else {
+        // Reset to default metadata if not present in import
+        setCampaignMetadata({
+          ...DEFAULT_CAMPAIGN_METADATA,
+          createdAt: new Date().toISOString(),
+        });
+      }
     }
 
-    // Import combat state if present
-    if (data.combatState && !keepExisting) {
+    // Import combat state if present and not keeping entities
+    if (data.combatState && !keepEntities) {
       setCombatants(data.combatState.combatants);
       setActiveCombatantIds(new Set(data.combatState.activeCombatantIds));
       setCombatRound(data.combatState.round);
@@ -335,7 +351,7 @@ export default function Index() {
     const fixedMsg = fixedCount > 0 ? ` (fixed ${fixedCount} duplicate IDs)` : '';
     toast({
       title: "Campaign imported",
-      description: keepExisting 
+      description: keepEntities 
         ? `Merged ${data.entities.length} entities (${addedCount} new)${fixedMsg}`
         : `Loaded ${data.entities.length} entities${fixedMsg}`,
     });

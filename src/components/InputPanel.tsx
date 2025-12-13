@@ -139,9 +139,14 @@ ${missingDataGuidance}
 Generate entities based on the campaign content I provide.`;
 }
 
+interface MergeDialogData {
+  newEntityTypes: EntityTypeDef[];
+  newAttributes: { typeKey: string; typeName: string; attributes: AttributeDef[] }[];
+}
+
 interface InputPanelProps {
   onProcess: (text: string, extractionOptions: ExtractionOptions, keepExisting: boolean) => void;
-  onImport: (data: CampaignExport, keepExisting: boolean) => void;
+  onImport: (data: CampaignExport, keepEntities: boolean, keepMetadata: boolean, mergeTypes: boolean) => void;
   onExport: () => void;
   processingState: ProcessingState;
   hasData: boolean;
@@ -185,9 +190,12 @@ export function InputPanel({
   const [isDragging, setIsDragging] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [openEntityTypes, setOpenEntityTypes] = useState<string[]>([]);
-  const [keepAllEntities, setKeepAllEntities] = useState(true);
+  const [keepExistingEntities, setKeepExistingEntities] = useState(true);
+  const [keepExistingMetadata, setKeepExistingMetadata] = useState(true);
   const [deleteWarning, setDeleteWarning] = useState<DeleteWarning | null>(null);
   const [jsonInput, setJsonInput] = useState('');
+  const [pendingImport, setPendingImport] = useState<CampaignExport | null>(null);
+  const [mergeDialog, setMergeDialog] = useState<MergeDialogData | null>(null);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
@@ -350,7 +358,12 @@ export function InputPanel({
       const text = await file.text();
       const data = JSON.parse(text) as CampaignExport;
       if (data.version && data.entities) {
-        onImport(data, keepAllEntities);
+        // Just populate the textarea for review - don't import yet
+        setJsonInput(JSON.stringify(data, null, 2));
+        toast({
+          title: "JSON loaded",
+          description: "Review and click 'Import JSON' to apply",
+        });
       } else {
         alert('Invalid campaign JSON format');
       }
@@ -358,7 +371,7 @@ export function InputPanel({
       console.error('Invalid JSON:', error);
       alert('Invalid JSON file');
     }
-  }, [onImport, keepAllEntities]);
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent, forJson: boolean = false) => {
     e.preventDefault();
@@ -403,22 +416,80 @@ export function InputPanel({
       entityTypes: entityTypes,
     };
     
-    onProcess(inputText, extractionOptions, keepAllEntities);
+    onProcess(inputText, extractionOptions, keepExistingEntities);
   };
+
+  // Detect new entity types and attributes
+  const detectNewTypesAndAttributes = useCallback((importData: CampaignExport): MergeDialogData => {
+    const existingTypeKeys = new Set(entityTypes.map(t => t.key));
+    
+    // Completely new entity types
+    const newEntityTypes = (importData.entityTypes || []).filter(
+      t => !existingTypeKeys.has(t.key)
+    );
+    
+    // New attributes on existing types
+    const newAttributes: { typeKey: string; typeName: string; attributes: AttributeDef[] }[] = [];
+    (importData.entityTypes || []).forEach(importedType => {
+      const existingType = entityTypes.find(t => t.key === importedType.key);
+      if (existingType) {
+        const existingAttrKeys = new Set(existingType.attributes.map(a => a.key));
+        const newAttrs = importedType.attributes.filter(a => !existingAttrKeys.has(a.key));
+        if (newAttrs.length > 0) {
+          newAttributes.push({
+            typeKey: importedType.key,
+            typeName: importedType.label,
+            attributes: newAttrs
+          });
+        }
+      }
+    });
+    
+    return { newEntityTypes, newAttributes };
+  }, [entityTypes]);
 
   const handleJsonImport = () => {
     try {
       const data = JSON.parse(jsonInput) as CampaignExport;
-      if (data.version && data.entities) {
-        onImport(data, keepAllEntities);
-        setJsonInput('');
-      } else {
+      if (!data.version || !data.entities) {
         alert('Invalid campaign JSON format');
+        return;
+      }
+      
+      // Check for new types/attributes
+      const { newEntityTypes, newAttributes } = detectNewTypesAndAttributes(data);
+      
+      if (newEntityTypes.length > 0 || newAttributes.length > 0) {
+        // Show merge dialog
+        setPendingImport(data);
+        setMergeDialog({ newEntityTypes, newAttributes });
+      } else {
+        // No new types/attrs - import directly
+        onImport(data, keepExistingEntities, keepExistingMetadata, false);
+        setJsonInput('');
       }
     } catch (error) {
       console.error('Invalid JSON:', error);
       alert('Invalid JSON format');
     }
+  };
+
+  const handleConfirmMerge = () => {
+    if (pendingImport) {
+      onImport(pendingImport, keepExistingEntities, keepExistingMetadata, true);
+      setJsonInput('');
+    }
+    setMergeDialog(null);
+    setPendingImport(null);
+  };
+
+  const handleSkipMerge = () => {
+    if (pendingImport) {
+      onImport(pendingImport, keepExistingEntities, keepExistingMetadata, false);
+      setJsonInput('');
+    }
+    setMergeDialog(null);
+    setPendingImport(null);
   };
 
   const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && entityTypes.length > 0;
@@ -798,19 +869,21 @@ export function InputPanel({
               </p>
             </div>
 
-            {/* Keep All Entities Checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="keepAllEntities"
-                checked={keepAllEntities}
-                onCheckedChange={(checked) => setKeepAllEntities(checked === true)}
-              />
-              <label
-                htmlFor="keepAllEntities"
-                className="text-sm font-serif text-muted-foreground cursor-pointer"
-              >
-                Keep all entities (merge, don't replace)
-              </label>
+            {/* Keep Existing Options */}
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="keepExistingEntities"
+                  checked={keepExistingEntities}
+                  onCheckedChange={(checked) => setKeepExistingEntities(checked === true)}
+                />
+                <label
+                  htmlFor="keepExistingEntities"
+                  className="text-sm font-serif text-muted-foreground cursor-pointer"
+                >
+                  Keep existing entities (merge)
+                </label>
+              </div>
             </div>
 
             {/* Generate Button */}
@@ -898,19 +971,34 @@ export function InputPanel({
               />
             </div>
 
-            {/* Keep All Entities Checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="keepAllEntitiesJson"
-                checked={keepAllEntities}
-                onCheckedChange={(checked) => setKeepAllEntities(checked === true)}
-              />
-              <label
-                htmlFor="keepAllEntitiesJson"
-                className="text-sm font-serif text-muted-foreground cursor-pointer"
-              >
-                Keep all entities (merge, don't replace)
-              </label>
+            {/* Keep Existing Options */}
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="keepExistingEntitiesJson"
+                  checked={keepExistingEntities}
+                  onCheckedChange={(checked) => setKeepExistingEntities(checked === true)}
+                />
+                <label
+                  htmlFor="keepExistingEntitiesJson"
+                  className="text-sm font-serif text-muted-foreground cursor-pointer"
+                >
+                  Keep existing entities (merge)
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="keepExistingMetadataJson"
+                  checked={keepExistingMetadata}
+                  onCheckedChange={(checked) => setKeepExistingMetadata(checked === true)}
+                />
+                <label
+                  htmlFor="keepExistingMetadataJson"
+                  className="text-sm font-serif text-muted-foreground cursor-pointer"
+                >
+                  Keep existing metadata (name & date)
+                </label>
+              </div>
             </div>
 
             {/* Import Button */}
@@ -960,6 +1048,60 @@ export function InputPanel({
             </Button>
             <Button variant="destructive" onClick={() => deleteWarning?.onConfirm()}>
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Merge Dialog */}
+      <Dialog open={!!mergeDialog} onOpenChange={() => { setMergeDialog(null); setPendingImport(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-500" />
+              New Configuration Found
+            </DialogTitle>
+            <DialogDescription className="font-serif">
+              The imported file contains entity types or attributes not in your current setup.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 my-4">
+            {mergeDialog && mergeDialog.newEntityTypes.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-sm mb-2">New Entity Types:</h4>
+                <ul className="space-y-1">
+                  {mergeDialog.newEntityTypes.map(t => (
+                    <li key={t.key} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                      {t.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {mergeDialog && mergeDialog.newAttributes.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-sm mb-2">New Attributes:</h4>
+                {mergeDialog.newAttributes.map(item => (
+                  <div key={item.typeKey} className="text-sm text-muted-foreground">
+                    <strong>{item.typeName}:</strong> {item.attributes.map(a => a.label).join(', ')}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="ghost" onClick={() => { setMergeDialog(null); setPendingImport(null); }}>
+              Cancel
+            </Button>
+            <Button variant="outline" onClick={handleSkipMerge}>
+              Skip (Entities Only)
+            </Button>
+            <Button onClick={handleConfirmMerge}>
+              Merge All
             </Button>
           </DialogFooter>
         </DialogContent>
