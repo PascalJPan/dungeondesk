@@ -575,7 +575,7 @@ function NodeGraphInner({
       
       {/* Type filter buttons and connect button at bottom center */}
       {presentTypes.length > 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-card/80 backdrop-blur-sm border border-border rounded-lg p-2">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-2 py-1">
           {presentTypes.map(typeDef => {
             const isHidden = hiddenTypes.has(typeDef.key);
             return (
