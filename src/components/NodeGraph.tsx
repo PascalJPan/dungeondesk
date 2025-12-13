@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -11,12 +11,15 @@ import ReactFlow, {
   Position,
   useReactFlow,
   ReactFlowProvider,
+  EdgeProps,
+  getBezierPath,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Plus } from 'lucide-react';
+import { Plus, Link2 } from 'lucide-react';
 import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 interface NodeGraphProps {
   data: CampaignData | null;
@@ -24,10 +27,12 @@ interface NodeGraphProps {
   onEntitySelect: (entity: CampaignEntity | null) => void;
   selectedEntityId: string | null;
   onAddEntity?: (typeDef: EntityTypeDef) => void;
+  onConnectionCreate?: (sourceEntityId: string, targetEntityId: string) => void;
+  onConnectionDelete?: (sourceEntityId: string, targetEntityId: string) => void;
 }
 
 // Custom circular node component
-function CircleNode({ data }: NodeProps<{ entity: CampaignEntity; color: string; isSelected: boolean; connectionCount: number }>) {
+function CircleNode({ data }: NodeProps<{ entity: CampaignEntity; color: string; isSelected: boolean; connectionCount: number; isConnectionSource?: boolean }>) {
   const size = 50 + Math.min(data.connectionCount * 5, 20);
   
   return (
@@ -53,14 +58,15 @@ function CircleNode({ data }: NodeProps<{ entity: CampaignEntity; color: string;
           className={cn(
             "rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer",
             "border-2 shadow-lg hover:scale-110",
-            data.isSelected && "ring-2 ring-foreground ring-offset-2 ring-offset-background scale-110"
+            data.isSelected && "ring-2 ring-foreground ring-offset-2 ring-offset-background scale-110",
+            data.isConnectionSource && "ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse"
           )}
           style={{
             width: size,
             height: size,
             backgroundColor: data.color,
-            borderColor: data.isSelected ? 'white' : 'transparent',
-            boxShadow: `0 4px ${data.isSelected ? 20 : 10}px ${data.color}40`,
+            borderColor: data.isSelected || data.isConnectionSource ? 'white' : 'transparent',
+            boxShadow: `0 4px ${data.isSelected || data.isConnectionSource ? 20 : 10}px ${data.color}40`,
           }}
         />
       </div>
@@ -80,11 +86,18 @@ function NodeGraphInner({
   onEntitySelect,
   selectedEntityId,
   onAddEntity,
+  onConnectionCreate,
+  onConnectionDelete,
 }: NodeGraphProps) {
   const { fitView } = useReactFlow();
   const filterChangeRef = useRef(0);
   // Filter state for entity types
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
+  // Selected edge state
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  // Connection tool mode
+  const [connectionMode, setConnectionMode] = useState(false);
+  const [connectionSource, setConnectionSource] = useState<string | null>(null);
   
   // Build connections and count
   const { connectionMap, connectionCounts } = useMemo(() => {
@@ -290,7 +303,7 @@ function NodeGraphInner({
     const addedEdges = new Set<string>();
     
     // Check if edge connects to selected entity
-    const isSelectedEdge = (sourceId: string, targetId: string) => {
+    const isNodeHighlighted = (sourceId: string, targetId: string) => {
       return selectedEntityId && (sourceId === selectedEntityId || targetId === selectedEntityId);
     };
     
@@ -299,11 +312,12 @@ function NodeGraphInner({
         const edgeKey = [entityId, targetId].sort().join('-');
         if (!addedEdges.has(edgeKey)) {
           addedEdges.add(edgeKey);
-          const isHighlighted = isSelectedEdge(entityId, targetId);
+          const isHighlighted = isNodeHighlighted(entityId, targetId);
           edges.push({
             id: edgeKey,
             source: entityId,
             target: targetId,
+            data: { sourceId: entityId, targetId },
             style: { 
               stroke: isHighlighted ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground) / 0.3)', 
               strokeWidth: isHighlighted ? 3 : 1.5,
@@ -320,15 +334,34 @@ function NodeGraphInner({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+  // Update node selection state
   React.useEffect(() => {
     setNodes(nodes => nodes.map(node => ({
       ...node,
       data: {
         ...node.data,
         isSelected: node.id === selectedEntityId,
+        isConnectionSource: connectionMode && node.id === connectionSource,
       },
     })));
-  }, [selectedEntityId, setNodes]);
+  }, [selectedEntityId, setNodes, connectionMode, connectionSource]);
+
+  // Update edge selection highlighting
+  React.useEffect(() => {
+    setEdges(edges => edges.map(edge => ({
+      ...edge,
+      style: {
+        ...edge.style,
+        stroke: edge.id === selectedEdgeId 
+          ? 'hsl(var(--destructive))' 
+          : (selectedEntityId && (edge.source === selectedEntityId || edge.target === selectedEntityId))
+            ? 'hsl(var(--foreground))'
+            : 'hsl(var(--muted-foreground) / 0.3)',
+        strokeWidth: edge.id === selectedEdgeId ? 4 : 
+          (selectedEntityId && (edge.source === selectedEntityId || edge.target === selectedEntityId)) ? 3 : 1.5,
+      },
+    })));
+  }, [selectedEdgeId, selectedEntityId, setEdges]);
 
   // Auto fit view when nodes change (including filter changes)
   React.useEffect(() => {
@@ -341,13 +374,61 @@ function NodeGraphInner({
   }, [initialNodes, initialEdges, setNodes, setEdges, fitView]);
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    // If in connection mode, handle connection creation
+    if (connectionMode && onConnectionCreate) {
+      if (!connectionSource) {
+        setConnectionSource(node.id);
+        toast({ title: "Select second entity to connect" });
+      } else if (connectionSource !== node.id) {
+        onConnectionCreate(connectionSource, node.id);
+        setConnectionSource(null);
+        setConnectionMode(false);
+        toast({ title: "Connection created" });
+      }
+      return;
+    }
+    
+    setSelectedEdgeId(null);
     const entity = data?.entities.find(e => e.id === node.id);
     onEntitySelect(entity || null);
-  }, [data, onEntitySelect]);
+  }, [data, onEntitySelect, connectionMode, connectionSource, onConnectionCreate]);
+
+  const handleEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
+    if (connectionMode) return;
+    setSelectedEdgeId(edge.id);
+    onEntitySelect(null);
+  }, [onEntitySelect, connectionMode]);
 
   const handlePaneClick = useCallback(() => {
+    setSelectedEdgeId(null);
+    if (connectionMode) {
+      setConnectionSource(null);
+      setConnectionMode(false);
+    }
     onEntitySelect(null);
-  }, [onEntitySelect]);
+  }, [onEntitySelect, connectionMode]);
+
+  // Handle backspace to delete selected edge
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Backspace' && selectedEdgeId && onConnectionDelete) {
+        const edge = edges.find(ed => ed.id === selectedEdgeId);
+        if (edge) {
+          onConnectionDelete(edge.source, edge.target);
+          setSelectedEdgeId(null);
+          toast({ title: "Connection deleted" });
+        }
+      }
+      if (e.key === 'Escape') {
+        setSelectedEdgeId(null);
+        setConnectionSource(null);
+        setConnectionMode(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedEdgeId, edges, onConnectionDelete]);
 
   const toggleTypeFilter = useCallback((typeKey: string) => {
     setHiddenTypes(prev => {
@@ -360,6 +441,15 @@ function NodeGraphInner({
       return next;
     });
   }, []);
+
+  const toggleConnectionMode = useCallback(() => {
+    setConnectionMode(prev => !prev);
+    setConnectionSource(null);
+    setSelectedEdgeId(null);
+    if (!connectionMode) {
+      toast({ title: "Connection mode", description: "Click two entities to connect them" });
+    }
+  }, [connectionMode]);
 
   // Get unique entity types from data
   const presentTypes = useMemo(() => {
@@ -399,16 +489,18 @@ function NodeGraphInner({
   }
 
   return (
-    <div className="h-full relative">
+    <div className="h-full relative" tabIndex={0}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
         nodesDraggable={false}
         nodesConnectable={false}
+        edgesUpdatable={false}
         fitView
         fitViewOptions={{ padding: 0.4 }}
         minZoom={0.1}
@@ -418,6 +510,31 @@ function NodeGraphInner({
         <Background color="hsl(var(--border))" gap={30} size={1} />
         <Controls className="!bg-card !border-border" />
       </ReactFlow>
+      
+      {/* Connection mode button */}
+      {onConnectionCreate && (
+        <div className="absolute top-4 right-4 z-10">
+          <Button
+            variant={connectionMode ? "default" : "outline"}
+            size="sm"
+            onClick={toggleConnectionMode}
+            className={cn(
+              "font-serif",
+              connectionMode && "bg-primary text-primary-foreground"
+            )}
+          >
+            <Link2 className="w-4 h-4 mr-1" />
+            {connectionMode ? (connectionSource ? "Select target..." : "Select source...") : "Connect"}
+          </Button>
+        </div>
+      )}
+      
+      {/* Selected edge hint */}
+      {selectedEdgeId && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-card/90 backdrop-blur-sm border border-border rounded-lg px-3 py-1.5 text-xs font-serif text-muted-foreground">
+          Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-foreground">Backspace</kbd> to delete connection
+        </div>
+      )}
       
       {/* Type filter buttons at bottom center */}
       {presentTypes.length > 0 && (
