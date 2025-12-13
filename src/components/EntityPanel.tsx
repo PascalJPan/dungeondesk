@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BookOpen, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -50,16 +50,32 @@ export function EntityPanel({
   const [editedEntity, setEditedEntity] = useState<CampaignEntity | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (entity) {
       setEditedEntity({ ...entity });
       setEditingField(null);
+      setIsAtBottom(false);
+      // Scroll to top when entity changes
+      if (scrollAreaRef.current) {
+        const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        if (viewport) {
+          viewport.scrollTop = 0;
+        }
+      }
     } else {
       setEditedEntity(null);
     }
   }, [entity]);
+
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLDivElement;
+    const isBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 10;
+    setIsAtBottom(isBottom);
+  }, []);
 
   if (!entity || !editedEntity) {
     return (
@@ -295,7 +311,7 @@ export function EntityPanel({
       </div>
 
       {/* Content */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1" ref={scrollAreaRef} onScrollCapture={handleScroll}>
         <div className="p-4 space-y-6">
           {renderedFields.length > 0 ? (
             renderedFields.map((field, idx) => (
@@ -314,17 +330,19 @@ export function EntityPanel({
         </div>
       </ScrollArea>
 
-      {/* Delete Button */}
-      <div className="p-2 border-t border-border flex justify-end">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setDeleteDialogOpen(true)}
-        >
-          Delete
-        </Button>
-      </div>
+      {/* Delete Button - only visible when scrolled to bottom */}
+      {isAtBottom && (
+        <div className="p-2 border-t border-border flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            Delete
+          </Button>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

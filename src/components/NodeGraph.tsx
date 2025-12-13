@@ -516,25 +516,23 @@ function NodeGraphInner({
         fitViewOptions={{ padding: 0.4 }}
         minZoom={0.1}
         maxZoom={2}
-        attributionPosition="bottom-left"
-      >
-        <Background color="hsl(var(--border))" gap={30} size={1} />
-      </ReactFlow>
+        proOptions={{ hideAttribution: true }}
+      />
       
       {/* Connection mode button - bottom left */}
       {onConnectionCreate && (
         <div className="absolute bottom-4 left-4 z-10">
           <Button
             variant={connectionMode ? "default" : "outline"}
-            size="sm"
+            size="icon"
             onClick={toggleConnectionMode}
             className={cn(
-              "font-serif",
+              "h-8 w-8",
               connectionMode && "bg-primary text-primary-foreground"
             )}
+            title={connectionMode ? (connectionSource ? "Select target..." : "Select source...") : "Connect entities"}
           >
-            <Link2 className="w-4 h-4 mr-1" />
-            {connectionMode ? (connectionSource ? "Select target..." : "Select source...") : "Connect"}
+            <Link2 className="w-4 h-4" />
           </Button>
         </div>
       )}

@@ -23,8 +23,8 @@ interface TableViewProps {
   setPlacedCards: React.Dispatch<React.SetStateAction<PlacedCard[]>>;
 }
 
-// Fixed 4x4 grid = 16 squares
-const GRID_ROWS = 4;
+// Fixed 3x4 grid = 12 squares
+const GRID_ROWS = 3;
 const GRID_COLS = 4;
 
 export function TableView({ 
