@@ -69,11 +69,14 @@ export function TableView({
     onEntitySelect(entity);
   }, [onEntitySelect]);
 
-  const filteredEntities = entities.filter(entity => {
-    const matchesSearch = entity.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = !selectedType || entity.type === selectedType;
-    return matchesSearch && matchesType;
-  });
+  // Filter and sort entities
+  const filteredEntities = entities
+    .filter(entity => {
+      const matchesSearch = entity.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = !selectedType || entity.type === selectedType;
+      return matchesSearch && matchesType;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   if (!hasEntities) {
     return (

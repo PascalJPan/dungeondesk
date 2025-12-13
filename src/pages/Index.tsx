@@ -182,11 +182,65 @@ export default function Index() {
     }
   }, [campaignData, mergeEntities]);
 
+  // Helper to clean and sync associations
+  const cleanAndSyncAssociations = useCallback((entities: CampaignEntity[]): CampaignEntity[] => {
+    const entityNames = new Set(entities.map(e => e.name.toLowerCase()));
+    
+    // First pass: remove invalid associations and collect all valid ones
+    const validAssocs = new Map<string, Set<string>>(); // entityName -> set of associated names
+    
+    entities.forEach(entity => {
+      const myName = entity.name.toLowerCase();
+      if (!validAssocs.has(myName)) {
+        validAssocs.set(myName, new Set());
+      }
+      
+      if (entity.associatedEntities) {
+        const assocs = entity.associatedEntities.split(',').map(s => s.trim()).filter(Boolean);
+        assocs.forEach(assocName => {
+          if (entityNames.has(assocName.toLowerCase())) {
+            validAssocs.get(myName)!.add(assocName.toLowerCase());
+          }
+        });
+      }
+    });
+    
+    // Second pass: ensure bidirectional consistency
+    validAssocs.forEach((assocs, entityName) => {
+      assocs.forEach(assocName => {
+        if (!validAssocs.has(assocName)) {
+          validAssocs.set(assocName, new Set());
+        }
+        validAssocs.get(assocName)!.add(entityName);
+      });
+    });
+    
+    // Third pass: apply cleaned associations back to entities
+    return entities.map(entity => {
+      const myName = entity.name.toLowerCase();
+      const myAssocs = validAssocs.get(myName) || new Set();
+      
+      // Get proper cased names from actual entities
+      const properCasedAssocs = Array.from(myAssocs).map(assocLower => {
+        const found = entities.find(e => e.name.toLowerCase() === assocLower);
+        return found ? found.name : assocLower;
+      });
+      
+      return {
+        ...entity,
+        associatedEntities: properCasedAssocs.join(', '),
+      };
+    });
+  }, []);
+
   const handleImport = useCallback((data: CampaignExport, keepExisting: boolean) => {
     const existingEntities = campaignData?.entities || [];
-    const finalEntities = keepExisting 
+    let finalEntities = keepExisting 
       ? mergeEntities(existingEntities, data.entities)
       : data.entities;
+    
+    // Clean and sync associations
+    finalEntities = cleanAndSyncAssociations(finalEntities);
     
     setCampaignData({
       entities: finalEntities,
@@ -216,7 +270,7 @@ export default function Index() {
         ? `Merged ${data.entities.length} entities (${addedCount} new)`
         : `Loaded ${data.entities.length} entities`,
     });
-  }, [campaignData, entityTypes, mergeEntities]);
+  }, [campaignData, entityTypes, mergeEntities, cleanAndSyncAssociations]);
 
   const handleExport = useCallback(() => {
     if (!campaignData) return;

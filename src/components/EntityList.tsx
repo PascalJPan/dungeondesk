@@ -58,7 +58,7 @@ export function EntityList({ data, entityTypes, selectedEntityId, onSelectEntity
     );
   }
 
-  // Group entities by type
+  // Group entities by type and sort within each group
   const entityGroups: Record<string, CampaignEntity[]> = {};
   entityTypes.forEach(t => {
     entityGroups[t.key] = [];
@@ -68,6 +68,11 @@ export function EntityList({ data, entityTypes, selectedEntityId, onSelectEntity
     if (entityGroups[entity.type]) {
       entityGroups[entity.type].push(entity);
     }
+  });
+
+  // Sort entities within each group alphabetically by name
+  Object.keys(entityGroups).forEach(key => {
+    entityGroups[key].sort((a, b) => a.name.localeCompare(b.name));
   });
 
   return (

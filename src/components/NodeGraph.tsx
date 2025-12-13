@@ -363,15 +363,29 @@ function NodeGraphInner({
     })));
   }, [selectedEdgeId, selectedEntityId, setEdges]);
 
-  // Auto fit view when nodes change (including filter changes)
+  // Track previous entity count to detect filter vs connection changes
+  const prevEntityCountRef = useRef(filteredData?.entities.length ?? 0);
+  const prevHiddenTypesRef = useRef(hiddenTypes);
+
+  // Auto fit view only when filters change or entities are added/removed (not connections)
   React.useEffect(() => {
+    const currentCount = filteredData?.entities.length ?? 0;
+    const hiddenTypesChanged = prevHiddenTypesRef.current !== hiddenTypes;
+    const entityCountChanged = prevEntityCountRef.current !== currentCount;
+    
     setNodes(initialNodes);
     setEdges(initialEdges);
-    // Trigger fit view after nodes update
-    setTimeout(() => {
-      fitView({ padding: 0.4, duration: 300 });
-    }, 50);
-  }, [initialNodes, initialEdges, setNodes, setEdges, fitView]);
+    
+    // Only fit view if filter changed or entity count changed (not just connection changes)
+    if (hiddenTypesChanged || entityCountChanged) {
+      setTimeout(() => {
+        fitView({ padding: 0.4, duration: 300 });
+      }, 50);
+    }
+    
+    prevEntityCountRef.current = currentCount;
+    prevHiddenTypesRef.current = hiddenTypes;
+  }, [initialNodes, initialEdges, setNodes, setEdges, fitView, filteredData?.entities.length, hiddenTypes]);
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     // If in connection mode, handle connection creation
@@ -511,9 +525,9 @@ function NodeGraphInner({
         <Controls className="!bg-card !border-border" />
       </ReactFlow>
       
-      {/* Connection mode button */}
+      {/* Connection mode button - bottom left */}
       {onConnectionCreate && (
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute bottom-4 left-4 z-10">
           <Button
             variant={connectionMode ? "default" : "outline"}
             size="sm"
