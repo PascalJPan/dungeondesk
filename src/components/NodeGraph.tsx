@@ -12,7 +12,7 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Plus, Link2 } from 'lucide-react';
+import { Plus, Link2, Unlink } from 'lucide-react';
 import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -94,6 +94,7 @@ function NodeGraphInner({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   // Connection tool mode
   const [connectionMode, setConnectionMode] = useState(false);
+  const [disconnectMode, setDisconnectMode] = useState(false);
   const [connectionSource, setConnectionSource] = useState<string | null>(null);
   
   // Build connections and count
@@ -338,10 +339,10 @@ function NodeGraphInner({
       data: {
         ...node.data,
         isSelected: node.id === selectedEntityId,
-        isConnectionSource: connectionMode && node.id === connectionSource,
+        isConnectionSource: (connectionMode || disconnectMode) && node.id === connectionSource,
       },
     })));
-  }, [selectedEntityId, setNodes, connectionMode, connectionSource]);
+  }, [selectedEntityId, setNodes, connectionMode, disconnectMode, connectionSource]);
 
   // Update edge selection highlighting
   React.useEffect(() => {
@@ -399,25 +400,40 @@ function NodeGraphInner({
       return;
     }
     
+    // If in disconnect mode, handle connection deletion
+    if (disconnectMode && onConnectionDelete) {
+      if (!connectionSource) {
+        setConnectionSource(node.id);
+        toast({ title: "Select second entity to disconnect" });
+      } else if (connectionSource !== node.id) {
+        onConnectionDelete(connectionSource, node.id);
+        setConnectionSource(null);
+        setDisconnectMode(false);
+        toast({ title: "Connection removed" });
+      }
+      return;
+    }
+    
     setSelectedEdgeId(null);
     const entity = data?.entities.find(e => e.id === node.id);
     onEntitySelect(entity || null);
-  }, [data, onEntitySelect, connectionMode, connectionSource, onConnectionCreate]);
+  }, [data, onEntitySelect, connectionMode, disconnectMode, connectionSource, onConnectionCreate, onConnectionDelete]);
 
   const handleEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
-    if (connectionMode) return;
+    if (connectionMode || disconnectMode) return;
     setSelectedEdgeId(edge.id);
     onEntitySelect(null);
-  }, [onEntitySelect, connectionMode]);
+  }, [onEntitySelect, connectionMode, disconnectMode]);
 
   const handlePaneClick = useCallback(() => {
     setSelectedEdgeId(null);
-    if (connectionMode) {
+    if (connectionMode || disconnectMode) {
       setConnectionSource(null);
       setConnectionMode(false);
+      setDisconnectMode(false);
     }
     onEntitySelect(null);
-  }, [onEntitySelect, connectionMode]);
+  }, [onEntitySelect, connectionMode, disconnectMode]);
 
   // Handle backspace to delete selected edge
   useEffect(() => {
@@ -434,6 +450,7 @@ function NodeGraphInner({
         setSelectedEdgeId(null);
         setConnectionSource(null);
         setConnectionMode(false);
+        setDisconnectMode(false);
       }
     };
     
@@ -455,12 +472,23 @@ function NodeGraphInner({
 
   const toggleConnectionMode = useCallback(() => {
     setConnectionMode(prev => !prev);
+    setDisconnectMode(false);
     setConnectionSource(null);
     setSelectedEdgeId(null);
     if (!connectionMode) {
       toast({ title: "Connection mode", description: "Click two entities to connect them" });
     }
   }, [connectionMode]);
+
+  const toggleDisconnectMode = useCallback(() => {
+    setDisconnectMode(prev => !prev);
+    setConnectionMode(false);
+    setConnectionSource(null);
+    setSelectedEdgeId(null);
+    if (!disconnectMode) {
+      toast({ title: "Disconnect mode", description: "Click two entities to remove their connection" });
+    }
+  }, [disconnectMode]);
 
   // Visible types (inverse of hidden)
   const visibleTypes = useMemo(() => {
@@ -580,6 +608,18 @@ function NodeGraphInner({
                 title={connectionMode ? (connectionSource ? "Select target..." : "Select source...") : "Connect entities"}
               >
                 <Link2 className={cn("w-3.5 h-3.5", connectionMode ? "text-primary-foreground" : "text-foreground")} />
+              </button>
+              <button
+                onClick={toggleDisconnectMode}
+                className={cn(
+                  "w-6 h-6 rounded-full border-2 transition-all duration-200 flex items-center justify-center",
+                  disconnectMode 
+                    ? "bg-destructive border-white scale-110" 
+                    : "bg-muted border-transparent hover:scale-110 hover:border-white"
+                )}
+                title={disconnectMode ? (connectionSource ? "Select target..." : "Select source...") : "Disconnect entities"}
+              >
+                <Unlink className={cn("w-3.5 h-3.5", disconnectMode ? "text-destructive-foreground" : "text-foreground")} />
               </button>
             </>
           )}
