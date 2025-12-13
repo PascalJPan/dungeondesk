@@ -121,7 +121,7 @@ export function CombatTracker({
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Sword className="w-5 h-5 text-primary" />
-          <span className="font-display text-lg">Combat Tracker</span>
+          <span className="font-display text-lg">Combat</span>
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Trash2, Plus, Minus } from 'lucide-react';
+import { BookOpen, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -166,7 +166,7 @@ export function EntityPanel({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-5 w-5 opacity-50 group-hover:opacity-100 text-destructive hover:text-destructive"
+                  className="h-5 w-5 opacity-50 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
                   onClick={() => handleRemoveAssociation(name)}
                 >
                   <Minus className="w-3 h-3" />
@@ -319,10 +319,9 @@ export function EntityPanel({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 px-2 text-xs text-destructive/60 hover:text-destructive"
+          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
           onClick={() => setDeleteDialogOpen(true)}
         >
-          <Trash2 className="w-3 h-3 mr-1" />
           Delete
         </Button>
       </div>

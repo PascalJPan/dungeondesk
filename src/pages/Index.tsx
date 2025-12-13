@@ -387,10 +387,6 @@ export default function Index() {
       };
     });
     setSelectedEntity(updatedEntity);
-    toast({
-      title: "Entity saved",
-      description: `${updatedEntity.name} has been updated`,
-    });
   }, []);
 
   const handleEntityDelete = useCallback((entityId: string) => {
@@ -577,7 +573,7 @@ export default function Index() {
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 h-auto w-4 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20"
+          className="shrink-0 h-8 w-4 self-end mb-2 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20"
           onClick={() => setLeftPanelOpen(!leftPanelOpen)}
         >
           {leftPanelOpen ? (
@@ -636,7 +632,7 @@ export default function Index() {
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 h-auto w-4 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20"
+          className="shrink-0 h-8 w-4 self-end mb-2 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20"
           onClick={() => setRightPanelOpen(!rightPanelOpen)}
         >
           {rightPanelOpen ? (
