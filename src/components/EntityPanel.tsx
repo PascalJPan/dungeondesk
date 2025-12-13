@@ -66,7 +66,7 @@ export function EntityPanel({
         if (scrollAreaRef.current) {
           const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
           if (viewport) {
-            viewport.scrollTop = 0;
+            (viewport as HTMLElement).scrollTop = 0;
           }
         }
       }
@@ -76,6 +76,23 @@ export function EntityPanel({
       prevEntityIdRef.current = null;
     }
   }, [entity]);
+
+  // Measure field heights when not editing
+  useEffect(() => {
+    // If no entity is selected, clear heights and skip measurement
+    if (!entity || !editedEntity) {
+      setFieldHeights(new Map());
+      return;
+    }
+
+    const heights = new Map<string, number>();
+    fieldRefs.current.forEach((el, key) => {
+      if (el) {
+        heights.set(key, el.offsetHeight);
+      }
+    });
+    setFieldHeights(heights);
+  }, [entity, editedEntity, editingField]);
 
   if (!entity || !editedEntity) {
     return (
@@ -227,18 +244,6 @@ export function EntityPanel({
     );
   };
 
-  // Measure field heights when not editing
-
-  // Measure field heights when not editing
-  useEffect(() => {
-    const heights = new Map<string, number>();
-    fieldRefs.current.forEach((el, key) => {
-      if (el) {
-        heights.set(key, el.offsetHeight);
-      }
-    });
-    setFieldHeights(heights);
-  }, [editedEntity, editingField]);
 
   const renderedFields = typeDef?.attributes
     .map(attr => {
