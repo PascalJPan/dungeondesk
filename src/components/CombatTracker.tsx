@@ -81,6 +81,7 @@ export function CombatTracker({
     setCombatants({});
     setRound(1);
     setActiveCombatantIds(new Set());
+    setShowAddDialog(false);
   };
 
   const addToCombat = (entityId: string) => {
@@ -91,6 +92,11 @@ export function CombatTracker({
     setActiveCombatantIds(prev => {
       const next = new Set(prev);
       next.delete(entityId);
+      return next;
+    });
+    setCombatants(prev => {
+      const next = { ...prev };
+      delete next[entityId];
       return next;
     });
   };
