@@ -575,7 +575,7 @@ function NodeGraphInner({
       
       {/* Type filter buttons and connect button at bottom center */}
       {presentTypes.length > 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-2 py-1">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-2 py-1 pointer-events-none">
           {presentTypes.map(typeDef => {
             const isHidden = hiddenTypes.has(typeDef.key);
             return (
@@ -583,7 +583,7 @@ function NodeGraphInner({
                 key={typeDef.key}
                 onClick={() => toggleTypeVisibility(typeDef.key)}
                 className={cn(
-                  "w-6 h-6 rounded-full border-2 transition-all duration-200",
+                  "w-6 h-6 rounded-full border-2 transition-all duration-200 pointer-events-auto",
                   isHidden ? "opacity-30 scale-90" : "opacity-100 scale-100 hover:scale-110"
                 )}
                 style={{
@@ -600,7 +600,7 @@ function NodeGraphInner({
               <button
                 onClick={toggleConnectionMode}
                 className={cn(
-                  "w-6 h-6 rounded-full border-2 transition-all duration-200 flex items-center justify-center",
+                  "w-6 h-6 rounded-full border-2 transition-all duration-200 flex items-center justify-center pointer-events-auto",
                   connectionMode 
                     ? "bg-primary border-white scale-110" 
                     : "bg-muted border-transparent hover:scale-110 hover:border-white"
@@ -612,7 +612,7 @@ function NodeGraphInner({
               <button
                 onClick={toggleDisconnectMode}
                 className={cn(
-                  "w-6 h-6 rounded-full border-2 transition-all duration-200 flex items-center justify-center",
+                  "w-6 h-6 rounded-full border-2 transition-all duration-200 flex items-center justify-center pointer-events-auto",
                   disconnectMode 
                     ? "bg-destructive border-white scale-110" 
                     : "bg-muted border-transparent hover:scale-110 hover:border-white"
