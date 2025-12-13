@@ -1,15 +1,16 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useRef } from 'react';
 import ReactFlow, {
   Node,
   Edge,
   Background,
   Controls,
-  MiniMap,
   useNodesState,
   useEdgesState,
   NodeProps,
   Handle,
   Position,
+  useReactFlow,
+  ReactFlowProvider,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Plus } from 'lucide-react';
@@ -68,13 +69,15 @@ const nodeTypes = {
   circle: CircleNode,
 };
 
-export function NodeGraph({ 
+function NodeGraphInner({ 
   data, 
   entityTypes,
   onEntitySelect,
   selectedEntityId,
   onAddEntity,
 }: NodeGraphProps) {
+  const { fitView } = useReactFlow();
+  const filterChangeRef = useRef(0);
   // Filter state for entity types
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
   
@@ -222,6 +225,38 @@ export function NodeGraph({
       });
     }
 
+    // Anti-cramping: push nodes apart if they're too close
+    const minDistance = 80;
+    const repulsionIterations = 3;
+    for (let iter = 0; iter < repulsionIterations; iter++) {
+      const posArray = Array.from(positions.entries());
+      for (let i = 0; i < posArray.length; i++) {
+        for (let j = i + 1; j < posArray.length; j++) {
+          const [idA, posA] = posArray[i];
+          const [idB, posB] = posArray[j];
+          
+          const dx = posB.x - posA.x;
+          const dy = posB.y - posA.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist < minDistance && dist > 0) {
+            const overlap = (minDistance - dist) / 2;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            
+            positions.set(idA, {
+              x: posA.x - nx * overlap,
+              y: posA.y - ny * overlap,
+            });
+            positions.set(idB, {
+              x: posB.x + nx * overlap,
+              y: posB.y + ny * overlap,
+            });
+          }
+        }
+      }
+    }
+
     // Create nodes
     filteredData.entities.forEach(entity => {
       const pos = positions.get(entity.id);
@@ -286,10 +321,15 @@ export function NodeGraph({
     })));
   }, [selectedEntityId, setNodes]);
 
+  // Auto fit view when nodes change (including filter changes)
   React.useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
+    // Trigger fit view after nodes update
+    setTimeout(() => {
+      fitView({ padding: 0.4, duration: 300 });
+    }, 50);
+  }, [initialNodes, initialEdges, setNodes, setEdges, fitView]);
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     const entity = data?.entities.find(e => e.id === node.id);
@@ -394,5 +434,13 @@ export function NodeGraph({
         </div>
       )}
     </div>
+  );
+}
+
+export function NodeGraph(props: NodeGraphProps) {
+  return (
+    <ReactFlowProvider>
+      <NodeGraphInner {...props} />
+    </ReactFlowProvider>
   );
 }
