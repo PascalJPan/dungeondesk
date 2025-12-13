@@ -235,11 +235,43 @@ export default function Index() {
     });
   }, []);
 
+  // Fix duplicate IDs in imported entities
+  const fixDuplicateIds = useCallback((entities: CampaignEntity[]): { entities: CampaignEntity[], fixedCount: number } => {
+    const usedIds = new Set<string>();
+    let fixedCount = 0;
+    
+    const fixedEntities = entities.map(entity => {
+      if (!usedIds.has(entity.id)) {
+        usedIds.add(entity.id);
+        return entity;
+      }
+      
+      // Find a new unique ID
+      const baseType = entity.id.replace(/-\d+$/, '');
+      let counter = 1;
+      let newId = `${baseType}-${counter}`;
+      while (usedIds.has(newId)) {
+        counter++;
+        newId = `${baseType}-${counter}`;
+      }
+      
+      usedIds.add(newId);
+      fixedCount++;
+      return { ...entity, id: newId };
+    });
+    
+    return { entities: fixedEntities, fixedCount };
+  }, []);
+
   const handleImport = useCallback((data: CampaignExport, keepExisting: boolean) => {
     const existingEntities = campaignData?.entities || [];
+    
+    // Fix duplicate IDs in imported data first
+    const { entities: fixedImportedEntities, fixedCount } = fixDuplicateIds(data.entities);
+    
     let finalEntities = keepExisting 
-      ? mergeEntities(existingEntities, data.entities)
-      : data.entities;
+      ? mergeEntities(existingEntities, fixedImportedEntities)
+      : fixedImportedEntities;
     
     // Clean and sync associations
     finalEntities = cleanAndSyncAssociations(finalEntities);
@@ -266,13 +298,14 @@ export default function Index() {
     }
     
     const addedCount = finalEntities.length - existingEntities.length;
+    const fixedMsg = fixedCount > 0 ? ` (fixed ${fixedCount} duplicate IDs)` : '';
     toast({
       title: "Campaign imported",
       description: keepExisting 
-        ? `Merged ${data.entities.length} entities (${addedCount} new)`
-        : `Loaded ${data.entities.length} entities`,
+        ? `Merged ${data.entities.length} entities (${addedCount} new)${fixedMsg}`
+        : `Loaded ${data.entities.length} entities${fixedMsg}`,
     });
-  }, [campaignData, entityTypes, mergeEntities, cleanAndSyncAssociations]);
+  }, [campaignData, entityTypes, mergeEntities, cleanAndSyncAssociations, fixDuplicateIds]);
 
   const handleExport = useCallback(() => {
     if (!campaignData) return;
