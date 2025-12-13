@@ -18,6 +18,9 @@ import {
   DEFAULT_ENTITY_TYPES,
   PromptSettings,
   DEFAULT_PROMPT_SETTINGS,
+  CampaignMetadata,
+  DEFAULT_CAMPAIGN_METADATA,
+  CombatState,
 } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -50,6 +53,10 @@ export default function Index() {
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
   const [entityTypes, setEntityTypes] = useState<EntityTypeDef[]>(DEFAULT_ENTITY_TYPES);
   const [promptSettings, setPromptSettings] = useState<PromptSettings>(DEFAULT_PROMPT_SETTINGS);
+  const [campaignMetadata, setCampaignMetadata] = useState<CampaignMetadata>({
+    ...DEFAULT_CAMPAIGN_METADATA,
+    createdAt: new Date().toISOString(),
+  });
   // Combat tracker state (persisted)
   const [combatants, setCombatants] = useState<Record<string, CombatantState>>({});
   const [activeCombatantIds, setActiveCombatantIds] = useState<Set<string>>(new Set());
@@ -304,6 +311,25 @@ export default function Index() {
     if (data.promptSettings && !keepExisting) {
       setPromptSettings(data.promptSettings);
     }
+
+    // Import campaign metadata if present
+    if (data.metadata && !keepExisting) {
+      setCampaignMetadata(data.metadata);
+    } else if (!keepExisting) {
+      // Reset to default metadata if not present in import
+      setCampaignMetadata({
+        ...DEFAULT_CAMPAIGN_METADATA,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Import combat state if present
+    if (data.combatState && !keepExisting) {
+      setCombatants(data.combatState.combatants);
+      setActiveCombatantIds(new Set(data.combatState.activeCombatantIds));
+      setCombatRound(data.combatState.round);
+      setCurrentTurnId(data.combatState.currentTurnId);
+    }
     
     const addedCount = finalEntities.length - existingEntities.length;
     const fixedMsg = fixedCount > 0 ? ` (fixed ${fixedCount} duplicate IDs)` : '';
@@ -317,20 +343,31 @@ export default function Index() {
 
   const handleExport = useCallback(() => {
     if (!campaignData) return;
+
+    const combatState: CombatState = {
+      combatants,
+      activeCombatantIds: Array.from(activeCombatantIds),
+      round: combatRound,
+      currentTurnId,
+    };
     
     const exportData: CampaignExport = {
       version: '1.0',
       exportedAt: new Date().toISOString(),
+      metadata: campaignMetadata,
       entityTypes: entityTypes,
       entities: campaignData.entities,
       promptSettings: promptSettings,
+      combatState: combatState,
     };
     
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `campaign-${new Date().toISOString().split('T')[0]}.json`;
+    // Use campaign name for filename, sanitized
+    const safeName = campaignMetadata.name.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'campaign';
+    a.download = `${safeName}-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
     
@@ -338,7 +375,7 @@ export default function Index() {
       title: "Campaign exported",
       description: "JSON file downloaded",
     });
-  }, [campaignData, entityTypes, promptSettings]);
+  }, [campaignData, entityTypes, promptSettings, campaignMetadata, combatants, activeCombatantIds, combatRound, currentTurnId]);
 
   const handleEntitySelect = useCallback((entity: CampaignEntity | null) => {
     setSelectedEntity(entity);
@@ -615,6 +652,8 @@ export default function Index() {
               onSelectField={handleSelectField}
               promptSettings={promptSettings}
               onPromptSettingsChange={setPromptSettings}
+              campaignMetadata={campaignMetadata}
+              onCampaignMetadataChange={setCampaignMetadata}
             />
           )}
         </aside>
