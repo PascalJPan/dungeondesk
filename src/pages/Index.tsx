@@ -440,7 +440,7 @@ export default function Index() {
         {/* Left Panel - Input */}
         <aside 
           className={cn(
-            "border-r border-border bg-card transition-all duration-300 shrink-0",
+            "border-r border-border bg-card transition-all duration-300 shrink-0 z-20",
             leftPanelOpen ? "w-80" : "w-0"
           )}
         >
@@ -462,7 +462,7 @@ export default function Index() {
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 h-auto rounded-none border-r border-border hover:bg-muted"
+          className="shrink-0 h-auto rounded-none border-r border-border hover:bg-muted z-20"
           onClick={() => setLeftPanelOpen(!leftPanelOpen)}
         >
           {leftPanelOpen ? (
