@@ -234,8 +234,8 @@ export function EntityPanel({
               onBlur={handleFieldBlur}
               className={cn(
                 "text-sm font-serif leading-relaxed resize-none min-h-[2.5rem] p-0 border-0 bg-transparent shadow-none",
-                "focus-visible:ring-0 focus-visible:ring-offset-0",
-                "hover:bg-muted/30 focus:bg-muted/30 rounded-md transition-colors",
+                "focus-visible:ring-0 focus-visible:ring-offset-0 caret-slim",
+                "text-foreground",
                 !value && "text-muted-foreground/50 italic"
               )}
               placeholder={`Add ${attr.label.toLowerCase()}...`}
@@ -261,11 +261,7 @@ export function EntityPanel({
                 value={editedEntity.name}
                 onChange={(e) => handleFieldChange('name', e.target.value)}
                 onBlur={handleFieldBlur}
-                className={cn(
-                  "font-serif font-semibold text-lg text-foreground h-7 px-1 border-0 bg-transparent shadow-none",
-                  "focus-visible:ring-0 focus-visible:ring-offset-0",
-                  "hover:bg-muted/30 focus:bg-muted/30 rounded transition-colors"
-                )}
+                className="font-serif font-semibold text-lg text-foreground h-7 px-1 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 caret-slim"
                 placeholder="Entity name"
               />
             </div>

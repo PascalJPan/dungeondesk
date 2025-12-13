@@ -158,6 +158,16 @@
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.35);
   }
+
+  /* Slim caret for text inputs */
+  .caret-slim {
+    caret-color: hsl(var(--foreground) / 0.6);
+  }
+
+  @keyframes caret-glow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.8; }
+  }
 }
 
 /* React Flow overrides */
