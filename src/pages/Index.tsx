@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, List, Sword, Network, Grid3X3 } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, List, Sword, Network, Grid3X3, Settings, BookOpenText } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
 import { EntityPanel } from '@/components/EntityPanel';
@@ -35,8 +35,14 @@ interface PlacedCard {
 
 export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'combat' | 'nodes' | 'table'>('list');
+
+  // Auto-close left panel when switching views
+  const handleViewChange = useCallback((newView: 'list' | 'combat' | 'nodes' | 'table') => {
+    setViewMode(newView);
+    setLeftPanelOpen(false);
+  }, []);
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<CampaignEntity | null>(null);
@@ -508,7 +514,7 @@ export default function Index() {
           <Button
             variant={viewMode === 'list' ? 'secondary' : 'ghost'}
             size="sm"
-            onClick={() => setViewMode('list')}
+            onClick={() => handleViewChange('list')}
             className="font-serif"
           >
             <List className="w-4 h-4 mr-1" />
@@ -517,7 +523,7 @@ export default function Index() {
           <Button
             variant={viewMode === 'nodes' ? 'secondary' : 'ghost'}
             size="sm"
-            onClick={() => setViewMode('nodes')}
+            onClick={() => handleViewChange('nodes')}
             className="font-serif"
           >
             <Network className="w-4 h-4 mr-1" />
@@ -526,7 +532,7 @@ export default function Index() {
           <Button
             variant={viewMode === 'table' ? 'secondary' : 'ghost'}
             size="sm"
-            onClick={() => setViewMode('table')}
+            onClick={() => handleViewChange('table')}
             className="font-serif"
           >
             <Grid3X3 className="w-4 h-4 mr-1" />
@@ -535,7 +541,7 @@ export default function Index() {
           <Button
             variant={viewMode === 'combat' ? 'secondary' : 'ghost'}
             size="sm"
-            onClick={() => setViewMode('combat')}
+            onClick={() => handleViewChange('combat')}
             className="font-serif"
           >
             <Sword className="w-4 h-4 mr-1" />
@@ -550,7 +556,7 @@ export default function Index() {
         <aside 
           className={cn(
             "border-r border-border bg-card transition-all duration-300 shrink-0 z-20",
-            leftPanelOpen ? "w-80" : "w-0"
+            leftPanelOpen ? "w-[50vw]" : "w-0"
           )}
         >
           {leftPanelOpen && (
@@ -579,7 +585,7 @@ export default function Index() {
           {leftPanelOpen ? (
             <ChevronLeft className="w-3 h-3" />
           ) : (
-            <ChevronRight className="w-3 h-3" />
+            <Settings className="w-3 h-3" />
           )}
         </Button>
 
@@ -638,7 +644,7 @@ export default function Index() {
           {rightPanelOpen ? (
             <ChevronRight className="w-3 h-3" />
           ) : (
-            <ChevronLeft className="w-3 h-3" />
+            <BookOpenText className="w-3 h-3" />
           )}
         </Button>
 

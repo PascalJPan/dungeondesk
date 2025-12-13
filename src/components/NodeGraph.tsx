@@ -3,7 +3,6 @@ import ReactFlow, {
   Node,
   Edge,
   Background,
-  Controls,
   useNodesState,
   useEdgesState,
   NodeProps,
@@ -11,8 +10,6 @@ import ReactFlow, {
   Position,
   useReactFlow,
   ReactFlowProvider,
-  EdgeProps,
-  getBezierPath,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Plus, Link2 } from 'lucide-react';
@@ -522,7 +519,6 @@ function NodeGraphInner({
         attributionPosition="bottom-left"
       >
         <Background color="hsl(var(--border))" gap={30} size={1} />
-        <Controls className="!bg-card !border-border" />
       </ReactFlow>
       
       {/* Connection mode button - bottom left */}
