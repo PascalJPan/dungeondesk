@@ -1,15 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, HelpCircle, Pencil, List, Sword, Network, Grid3X3 } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, List, Sword, Network, Grid3X3 } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
-import { EntityEditor } from '@/components/EntityEditor';
-import { EntityReader } from '@/components/EntityReader';
-import { QuestionsPanel } from '@/components/QuestionsPanel';
+import { EntityPanel } from '@/components/EntityPanel';
 import { NodeGraph } from '@/components/NodeGraph';
 import { TableView } from '@/components/TableView';
 import { CombatTracker } from '@/components/CombatTracker';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   CampaignData, 
   CampaignEntity, 
@@ -39,7 +36,6 @@ interface PlacedCard {
 export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [activeRightTab, setActiveRightTab] = useState<'read' | 'edit' | 'questions'>('read');
   const [viewMode, setViewMode] = useState<'list' | 'combat' | 'nodes' | 'table'>('list');
   
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
@@ -299,7 +295,6 @@ export default function Index() {
   const handleEntitySelect = useCallback((entity: CampaignEntity | null) => {
     setSelectedEntity(entity);
     if (entity) {
-      setActiveRightTab('read');
       if (!rightPanelOpen) setRightPanelOpen(true);
     }
   }, [rightPanelOpen]);
@@ -424,7 +419,6 @@ export default function Index() {
     });
     
     setSelectedEntity(newEntity);
-    setActiveRightTab('edit');
     if (!rightPanelOpen) setRightPanelOpen(true);
   }, [rightPanelOpen]);
 
@@ -494,11 +488,10 @@ export default function Index() {
     });
   }, []);
 
-  const handleSelectField = useCallback((entityId: string, fieldKey: string) => {
+  const handleSelectField = useCallback((entityId: string, _fieldKey: string) => {
     const entity = campaignData?.entities.find(e => e.id === entityId);
     if (entity) {
       setSelectedEntity(entity);
-      setActiveRightTab('edit');
       if (!rightPanelOpen) setRightPanelOpen(true);
     }
   }, [campaignData, rightPanelOpen]);
@@ -574,6 +567,8 @@ export default function Index() {
               entityTypes={entityTypes}
               onEntityTypesChange={setEntityTypes}
               existingEntities={campaignData?.entities || []}
+              campaignData={campaignData}
+              onSelectField={handleSelectField}
             />
           )}
         </aside>
@@ -651,7 +646,7 @@ export default function Index() {
           )}
         </Button>
 
-        {/* Right Panel - Read, Edit & Questions */}
+        {/* Right Panel - Entity Details */}
         <aside 
           className={cn(
             "border-l border-border bg-card transition-all duration-300 shrink-0 flex flex-col z-20",
@@ -659,61 +654,14 @@ export default function Index() {
           )}
         >
           {rightPanelOpen && (
-            <Tabs 
-              value={activeRightTab} 
-              onValueChange={(v) => setActiveRightTab(v as 'read' | 'edit' | 'questions')}
-              className="flex flex-col h-full"
-            >
-              <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent p-0 h-auto shrink-0">
-                <TabsTrigger 
-                  value="read"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
-                >
-                  <BookOpen className="w-4 h-4 mr-1" />
-                  Read
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="edit"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
-                >
-                  <Pencil className="w-4 h-4 mr-1" />
-                  Edit
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="questions"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-3 font-serif"
-                >
-                  <HelpCircle className="w-4 h-4 mr-1" />
-                  Questions
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="read" className="flex-1 m-0 min-h-0">
-                <EntityReader 
-                  entity={selectedEntity}
-                  entityTypes={entityTypes}
-                  entities={campaignData?.entities || []}
-                  onClose={() => setSelectedEntity(null)}
-                  onEntityClick={handleEntitySelect}
-                />
-              </TabsContent>
-              <TabsContent value="edit" className="flex-1 m-0 min-h-0">
-                <EntityEditor 
-                  entity={selectedEntity}
-                  data={campaignData}
-                  entityTypes={entityTypes}
-                  onClose={() => setSelectedEntity(null)}
-                  onSave={handleEntitySave}
-                  onDelete={handleEntityDelete}
-                />
-              </TabsContent>
-              <TabsContent value="questions" className="flex-1 m-0 min-h-0">
-                <QuestionsPanel 
-                  data={campaignData}
-                  entityTypes={entityTypes}
-                  onSelectField={handleSelectField}
-                />
-              </TabsContent>
-            </Tabs>
+            <EntityPanel
+              entity={selectedEntity}
+              entityTypes={entityTypes}
+              entities={campaignData?.entities || []}
+              onSave={handleEntitySave}
+              onDelete={handleEntityDelete}
+              onEntityClick={handleEntitySelect}
+            />
           )}
         </aside>
       </div>

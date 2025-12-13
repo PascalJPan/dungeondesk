@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle, FileJson, Copy } from 'lucide-react';
+import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle, FileJson, Copy, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS } from '@/types/mindmap';
+import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS, CampaignData } from '@/types/mindmap';
 import { Slider } from '@/components/ui/slider';
+import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
@@ -147,6 +148,8 @@ interface InputPanelProps {
   entityTypes: EntityTypeDef[];
   onEntityTypesChange: (types: EntityTypeDef[]) => void;
   existingEntities: CampaignEntity[];
+  campaignData: CampaignData | null;
+  onSelectField: (entityId: string, fieldKey: string) => void;
 }
 
 interface DeleteWarning {
@@ -166,6 +169,8 @@ export function InputPanel({
   entityTypes,
   onEntityTypesChange,
   existingEntities,
+  campaignData,
+  onSelectField,
 }: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -435,6 +440,13 @@ export function InputPanel({
           >
             <FileJson className="w-4 h-4 mr-1" />
             JSON
+          </TabsTrigger>
+          <TabsTrigger 
+            value="questions"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 py-3 font-serif text-xs"
+          >
+            <HelpCircle className="w-4 h-4 mr-1" />
+            Questions
           </TabsTrigger>
         </TabsList>
 
@@ -874,6 +886,15 @@ export function InputPanel({
               Import JSON
             </Button>
           </div>
+        </TabsContent>
+
+        {/* Questions Tab */}
+        <TabsContent value="questions" className="flex-1 m-0 overflow-hidden">
+          <QuestionsPanel 
+            data={campaignData}
+            entityTypes={entityTypes}
+            onSelectField={onSelectField}
+          />
         </TabsContent>
       </Tabs>
 
