@@ -38,7 +38,6 @@ export function TableView({
   const [hoveredCell, setHoveredCell] = React.useState<{ row: number; col: number } | null>(null);
   const [openPopover, setOpenPopover] = React.useState<{ row: number; col: number } | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
-  const [selectedType, setSelectedType] = React.useState<string | null>(null);
 
   const entities = data?.entities || [];
   const hasEntities = entities.length > 0;
@@ -57,7 +56,6 @@ export function TableView({
     });
     setOpenPopover(null);
     setSearchTerm('');
-    setSelectedType(null);
   }, [setPlacedCards]);
 
   const handleRemoveCard = useCallback((row: number, col: number, e: React.MouseEvent) => {
@@ -69,14 +67,14 @@ export function TableView({
     onEntitySelect(entity);
   }, [onEntitySelect]);
 
-  // Filter and sort entities
+  // Filter and sort entities by type then alphabetically
   const filteredEntities = entities
-    .filter(entity => {
-      const matchesSearch = entity.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesType = !selectedType || entity.type === selectedType;
-      return matchesSearch && matchesType;
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter(entity => entity.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      const typeCompare = a.type.localeCompare(b.type);
+      if (typeCompare !== 0) return typeCompare;
+      return a.name.localeCompare(b.name);
+    });
 
   if (!hasEntities) {
     return (
@@ -169,7 +167,6 @@ export function TableView({
                       setOpenPopover(open ? { row, col } : null);
                       if (!open) {
                         setSearchTerm('');
-                        setSelectedType(null);
                       }
                     }}
                   >
@@ -185,33 +182,6 @@ export function TableView({
                     </PopoverTrigger>
                     <PopoverContent className="w-64 p-2 z-50 bg-popover" align="start">
                       <div className="space-y-2">
-                        {/* Type filter */}
-                        <div className="flex gap-1 flex-wrap">
-                          <Button
-                            variant={selectedType === null ? "secondary" : "ghost"}
-                            size="sm"
-                            className="h-6 text-xs"
-                            onClick={() => setSelectedType(null)}
-                          >
-                            All
-                          </Button>
-                          {entityTypes.map(type => (
-                            <Button
-                              key={type.key}
-                              variant={selectedType === type.key ? "secondary" : "ghost"}
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => setSelectedType(type.key)}
-                            >
-                              <span 
-                                className="w-2 h-2 rounded-full mr-1"
-                                style={{ backgroundColor: type.color }}
-                              />
-                              {type.label}
-                            </Button>
-                          ))}
-                        </div>
-                        
                         {/* Search */}
                         <Input
                           placeholder="Search entities..."
