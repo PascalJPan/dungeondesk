@@ -575,24 +575,24 @@ export default function Index() {
           )}
         </aside>
 
-        {/* Left Panel Toggle */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "shrink-0 h-8 w-6 self-end mb-2 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20",
-            !leftPanelOpen && "ml-1"
-          )}
-          onClick={() => setLeftPanelOpen(!leftPanelOpen)}
-        >
-          {leftPanelOpen ? (
-            <ChevronLeft className="w-3 h-3" />
-          ) : rightPanelOpen ? (
-            <ChevronRight className="w-3 h-3" />
-          ) : (
-            <Settings className="w-3 h-3" />
-          )}
-        </Button>
+        {/* Left Panel Toggle - hidden when both panels open */}
+        {!(leftPanelOpen && rightPanelOpen) && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "shrink-0 h-8 w-6 self-end mb-2 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20",
+              !leftPanelOpen && "ml-1"
+            )}
+            onClick={() => setLeftPanelOpen(!leftPanelOpen)}
+          >
+            {leftPanelOpen ? (
+              <ChevronLeft className="w-3 h-3" />
+            ) : (
+              <Settings className="w-3 h-3" />
+            )}
+          </Button>
+        )}
 
         {/* Main Area */}
         <main className="flex-1 min-w-0 relative z-0">
@@ -639,24 +639,24 @@ export default function Index() {
           )}
         </main>
 
-        {/* Right Panel Toggle */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "shrink-0 h-8 w-6 self-end mb-2 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20",
-            !rightPanelOpen && "mr-1"
-          )}
-          onClick={() => setRightPanelOpen(!rightPanelOpen)}
-        >
-          {rightPanelOpen ? (
-            <ChevronRight className="w-3 h-3" />
-          ) : leftPanelOpen ? (
-            <ChevronLeft className="w-3 h-3" />
-          ) : (
-            <BookOpenText className="w-3 h-3" />
-          )}
-        </Button>
+        {/* Right Panel Toggle - hidden when both panels open */}
+        {!(leftPanelOpen && rightPanelOpen) && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "shrink-0 h-8 w-6 self-end mb-2 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20",
+              !rightPanelOpen && "mr-1"
+            )}
+            onClick={() => setRightPanelOpen(!rightPanelOpen)}
+          >
+            {rightPanelOpen ? (
+              <ChevronRight className="w-3 h-3" />
+            ) : (
+              <BookOpenText className="w-3 h-3" />
+            )}
+          </Button>
+        )}
 
         {/* Right Panel - Entity Details */}
         <aside 
