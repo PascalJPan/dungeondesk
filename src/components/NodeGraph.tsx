@@ -547,7 +547,7 @@ function NodeGraphInner({
   }
 
   return (
-    <div className="h-full relative" tabIndex={0}>
+    <div className="h-full relative outline-none" tabIndex={-1}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

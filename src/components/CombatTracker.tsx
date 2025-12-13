@@ -210,8 +210,8 @@ export function CombatTracker({
             const speed = entity.speed || '—';
 
             return (
-              <Card 
-                key={entity.id}
+            <Card 
+                key={`combat-${entity.id}`}
                 className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary' : 'hover:bg-muted/50'}`}
                 onClick={() => onEntitySelect(entity)}
               >

@@ -50,7 +50,7 @@ export function EntityPanel({
   const [editedEntity, setEditedEntity] = useState<CampaignEntity | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [fieldHeights, setFieldHeights] = useState<Map<string, number>>(new Map());
+  const [editingFieldHeight, setEditingFieldHeight] = useState<number>(80);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const prevEntityIdRef = useRef<string | null>(null);
@@ -77,22 +77,14 @@ export function EntityPanel({
     }
   }, [entity]);
 
-  // Measure field heights when not editing
-  useEffect(() => {
-    // If no entity is selected, clear heights and skip measurement
-    if (!entity || !editedEntity) {
-      setFieldHeights(new Map());
-      return;
+  // Function to start editing a field - captures height first
+  const startEditing = (fieldKey: string) => {
+    const el = fieldRefs.current.get(fieldKey);
+    if (el) {
+      setEditingFieldHeight(Math.max(80, el.offsetHeight));
     }
-
-    const heights = new Map<string, number>();
-    fieldRefs.current.forEach((el, key) => {
-      if (el) {
-        heights.set(key, el.offsetHeight);
-      }
-    });
-    setFieldHeights(heights);
-  }, [entity, editedEntity, editingField]);
+    setEditingField(fieldKey);
+  };
 
   if (!entity || !editedEntity) {
     return (
@@ -250,8 +242,6 @@ export function EntityPanel({
       const value = editedEntity[attr.key] || '';
       const isAssociatedEntities = attr.key === 'associatedEntities';
       const isEditing = editingField === attr.key;
-      const measuredHeight = fieldHeights.get(attr.key) || 80;
-      const minHeight = Math.max(80, measuredHeight);
 
       return (
         <div key={attr.key} className="space-y-1.5">
@@ -267,7 +257,7 @@ export function EntityPanel({
               onChange={(e) => handleFieldChange(attr.key, e.target.value)}
               onBlur={() => handleFieldBlur(attr.key)}
               className="text-sm font-serif resize-y"
-              style={{ minHeight: `${minHeight}px` }}
+              style={{ minHeight: `${editingFieldHeight}px` }}
               placeholder={`Enter ${attr.label.toLowerCase()}...`}
             />
           ) : (
@@ -275,7 +265,7 @@ export function EntityPanel({
               ref={(el) => {
                 if (el) fieldRefs.current.set(attr.key, el);
               }}
-              onClick={() => setEditingField(attr.key)}
+              onClick={() => startEditing(attr.key)}
               className={cn(
                 "text-sm font-serif leading-relaxed text-foreground whitespace-pre-wrap cursor-text rounded-md p-2 -m-2",
                 "hover:bg-muted/30 transition-colors",
