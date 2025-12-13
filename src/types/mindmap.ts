@@ -168,13 +168,34 @@ export interface ExtractionOptions {
   promptSettings?: PromptSettings;
 }
 
+// Campaign metadata
+export interface CampaignMetadata {
+  name: string;
+  createdAt: string; // ISO date string
+}
+
+export const DEFAULT_CAMPAIGN_METADATA: CampaignMetadata = {
+  name: 'Untitled Campaign',
+  createdAt: new Date().toISOString(),
+};
+
+// Combat state for export
+export interface CombatState {
+  combatants: Record<string, { currentHP: number; initiative: number }>;
+  activeCombatantIds: string[];
+  round: number;
+  currentTurnId: string | null;
+}
+
 // Campaign export format
 export interface CampaignExport {
   version: string;
   exportedAt: string;
+  metadata?: CampaignMetadata;
   entityTypes: EntityTypeDef[];
   entities: CampaignEntity[];
   promptSettings?: PromptSettings;
+  combatState?: CombatState;
 }
 
 // Processing state

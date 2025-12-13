@@ -110,12 +110,11 @@ export function CombatTracker({
     }
   };
 
-  // Roll initiative for all monsters
-  const rollMonsterInitiative = () => {
-    const monsters = combatEntities.filter(e => e.type === 'monster');
-    monsters.forEach(monster => {
+  // Roll initiative for all combatants
+  const rollAllInitiative = () => {
+    combatEntities.forEach(entity => {
       const roll = Math.floor(Math.random() * 20) + 1;
-      updateCombatant(monster.id, { initiative: roll });
+      updateCombatant(entity.id, { initiative: roll });
     });
   };
 
@@ -158,8 +157,6 @@ export function CombatTracker({
       </div>
     );
   }
-
-  const hasMonsters = combatEntities.some(e => e.type === 'monster');
 
   return (
     <div className="h-full flex flex-col">
@@ -225,10 +222,10 @@ export function CombatTracker({
               </ScrollArea>
             </DialogContent>
           </Dialog>
-          {hasMonsters && (
-            <Button variant="outline" size="sm" onClick={rollMonsterInitiative} title="Roll initiative for all monsters">
+          {combatEntities.length > 0 && (
+            <Button variant="outline" size="sm" onClick={rollAllInitiative} title="Roll initiative for all combatants">
               <Dices className="w-4 h-4 mr-1" />
-              Roll Monsters
+              Roll Init
             </Button>
           )}
           <Badge variant="outline" className="font-mono">

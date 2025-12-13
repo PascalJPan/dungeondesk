@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS, CampaignData } from '@/types/mindmap';
+import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS, CampaignData, CampaignMetadata } from '@/types/mindmap';
 import { Slider } from '@/components/ui/slider';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { cn } from '@/lib/utils';
@@ -152,6 +152,8 @@ interface InputPanelProps {
   onSelectField: (entityId: string, fieldKey: string) => void;
   promptSettings: PromptSettings;
   onPromptSettingsChange: (settings: PromptSettings) => void;
+  campaignMetadata: CampaignMetadata;
+  onCampaignMetadataChange: (metadata: CampaignMetadata) => void;
 }
 
 interface DeleteWarning {
@@ -175,6 +177,8 @@ export function InputPanel({
   onSelectField,
   promptSettings,
   onPromptSettingsChange,
+  campaignMetadata,
+  onCampaignMetadataChange,
 }: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -455,13 +459,42 @@ export function InputPanel({
 
         {/* Settings Tab */}
         <TabsContent value="settings" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
-          <div className="p-4 space-y-2 ink-texture">
-            <div className="space-y-1 mb-4">
-              <h2 className="text-lg font-display text-foreground">Entity Types</h2>
-              <p className="text-sm text-muted-foreground font-serif">
-                Configure entity types and their attributes
-              </p>
+          <div className="p-4 space-y-4 ink-texture">
+            {/* Campaign Info Section */}
+            <div className="space-y-3 pb-4 border-b border-border">
+              <h2 className="text-lg font-display text-foreground">Campaign Info</h2>
+              <div className="space-y-2">
+                <Label htmlFor="campaign-name" className="text-sm font-serif">Campaign Name</Label>
+                <Input
+                  id="campaign-name"
+                  value={campaignMetadata.name}
+                  onChange={(e) => onCampaignMetadataChange({ ...campaignMetadata, name: e.target.value })}
+                  placeholder="Enter campaign name"
+                  className="font-serif"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-sm font-serif text-muted-foreground">Created</Label>
+                <p className="text-sm font-mono text-foreground">
+                  {new Date(campaignMetadata.createdAt).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
             </div>
+
+            {/* Entity Types Section */}
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <h2 className="text-lg font-display text-foreground">Entity Types</h2>
+                <p className="text-sm text-muted-foreground font-serif">
+                  Configure entity types and their attributes
+                </p>
+              </div>
 
             {entityTypes.map((typeDef) => {
               const isOpen = openEntityTypes.includes(typeDef.key);
@@ -611,7 +644,7 @@ export function InputPanel({
               <Plus className="w-4 h-4 mr-2" />
               Add Entity Type
             </Button>
-
+            </div>
             <div className="pt-4 border-t border-border mt-4 space-y-4">
               {/* Prompt Settings */}
               <div className="space-y-3">
