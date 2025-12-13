@@ -174,6 +174,7 @@ export interface CampaignExport {
   exportedAt: string;
   entityTypes: EntityTypeDef[];
   entities: CampaignEntity[];
+  promptSettings?: PromptSettings;
 }
 
 // Processing state

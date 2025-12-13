@@ -233,13 +233,24 @@ export function EntityPanel({
               onChange={(e) => handleFieldChange(attr.key, e.target.value)}
               onBlur={handleFieldBlur}
               className={cn(
-                "text-sm font-serif leading-relaxed resize-none min-h-[2.5rem] p-0 border-0 bg-transparent shadow-none",
+                "text-sm font-serif leading-relaxed resize-none min-h-[2.5rem] p-0 border-0 bg-transparent shadow-none overflow-hidden",
                 "focus-visible:ring-0 focus-visible:ring-offset-0 caret-slim",
                 "text-foreground",
                 !value && "text-muted-foreground/50 italic"
               )}
               placeholder={`Add ${attr.label.toLowerCase()}...`}
-              rows={Math.max(1, (value.match(/\n/g) || []).length + 1)}
+              style={{ height: 'auto' }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = `${target.scrollHeight}px`;
+              }}
+              ref={(el) => {
+                if (el) {
+                  el.style.height = 'auto';
+                  el.style.height = `${el.scrollHeight}px`;
+                }
+              }}
             />
           )}
         </div>

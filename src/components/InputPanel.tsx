@@ -150,6 +150,8 @@ interface InputPanelProps {
   existingEntities: CampaignEntity[];
   campaignData: CampaignData | null;
   onSelectField: (entityId: string, fieldKey: string) => void;
+  promptSettings: PromptSettings;
+  onPromptSettingsChange: (settings: PromptSettings) => void;
 }
 
 interface DeleteWarning {
@@ -171,6 +173,8 @@ export function InputPanel({
   existingEntities,
   campaignData,
   onSelectField,
+  promptSettings,
+  onPromptSettingsChange,
 }: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -180,7 +184,6 @@ export function InputPanel({
   const [keepAllEntities, setKeepAllEntities] = useState(true);
   const [deleteWarning, setDeleteWarning] = useState<DeleteWarning | null>(null);
   const [jsonInput, setJsonInput] = useState('');
-  const [promptSettings, setPromptSettings] = useState<PromptSettings>(DEFAULT_PROMPT_SETTINGS);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
@@ -621,7 +624,7 @@ export function InputPanel({
                   </Label>
                   <Input
                     value={promptSettings.contentLanguage}
-                    onChange={(e) => setPromptSettings(prev => ({ ...prev, contentLanguage: e.target.value }))}
+                    onChange={(e) => onPromptSettingsChange({ ...promptSettings, contentLanguage: e.target.value })}
                     className="h-8 text-sm font-serif"
                     placeholder="English, German, etc."
                   />
@@ -634,7 +637,7 @@ export function InputPanel({
                   </Label>
                   <Input
                     value={promptSettings.tone}
-                    onChange={(e) => setPromptSettings(prev => ({ ...prev, tone: e.target.value }))}
+                    onChange={(e) => onPromptSettingsChange({ ...promptSettings, tone: e.target.value })}
                     className="h-8 text-sm font-serif"
                     placeholder="High Fantasy, Dark Fantasy, etc."
                   />
@@ -647,7 +650,7 @@ export function InputPanel({
                   </Label>
                   <Slider
                     value={[promptSettings.inferLevel]}
-                    onValueChange={(value) => setPromptSettings(prev => ({ ...prev, inferLevel: value[0] }))}
+                    onValueChange={(value) => onPromptSettingsChange({ ...promptSettings, inferLevel: value[0] })}
                     min={1}
                     max={5}
                     step={1}
