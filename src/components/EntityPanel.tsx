@@ -52,20 +52,26 @@ export function EntityPanel({
   const [editingField, setEditingField] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const prevEntityIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (entity) {
       setEditedEntity({ ...entity });
-      setEditingField(null);
-      // Scroll to top when entity changes
-      if (scrollAreaRef.current) {
-        const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-        if (viewport) {
-          viewport.scrollTop = 0;
+      
+      // Only scroll to top and reset editing when switching to a different entity
+      if (prevEntityIdRef.current !== entity.id) {
+        setEditingField(null);
+        if (scrollAreaRef.current) {
+          const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+          if (viewport) {
+            viewport.scrollTop = 0;
+          }
         }
       }
+      prevEntityIdRef.current = entity.id;
     } else {
       setEditedEntity(null);
+      prevEntityIdRef.current = null;
     }
   }, [entity]);
 
