@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Sword, Shield, Heart, Footprints, Plus, Minus, RotateCcw, UserPlus, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
 import { 
   CampaignData, 
   CampaignEntity, 
@@ -14,25 +13,41 @@ import {
   getEntityColor,
 } from '@/types/mindmap';
 
+interface CombatantState {
+  currentHP: number;
+  initiative: number;
+}
+
 interface CombatTrackerProps {
   data: CampaignData | null;
   entityTypes: EntityTypeDef[];
   onEntitySelect: (entity: CampaignEntity | null) => void;
   selectedEntityId: string | null;
   autoAddCharacters?: boolean;
+  // Lifted state
+  combatants: Record<string, CombatantState>;
+  setCombatants: React.Dispatch<React.SetStateAction<Record<string, CombatantState>>>;
+  activeCombatantIds: Set<string>;
+  setActiveCombatantIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  round: number;
+  setRound: React.Dispatch<React.SetStateAction<number>>;
 }
 
-interface CombatantState {
-  currentHP: number;
-  initiative: number;
-}
-
-export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntityId, autoAddCharacters = true }: CombatTrackerProps) {
-  const [combatants, setCombatants] = useState<Record<string, CombatantState>>({});
-  const [activeCombatantIds, setActiveCombatantIds] = useState<Set<string>>(new Set());
-  const [round, setRound] = useState(1);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [initialized, setInitialized] = useState(false);
+export function CombatTracker({ 
+  data, 
+  entityTypes, 
+  onEntitySelect, 
+  selectedEntityId, 
+  autoAddCharacters = true,
+  combatants,
+  setCombatants,
+  activeCombatantIds,
+  setActiveCombatantIds,
+  round,
+  setRound,
+}: CombatTrackerProps) {
+  const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [initialized, setInitialized] = React.useState(false);
 
   // Get entities that have combat stats (monsters and characters)
   const allCombatEntities = data?.entities.filter(
@@ -45,10 +60,12 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
       const characterIds = data.entities
         .filter(e => e.type === 'character')
         .map(e => e.id);
-      setActiveCombatantIds(new Set(characterIds));
+      if (characterIds.length > 0 && activeCombatantIds.size === 0) {
+        setActiveCombatantIds(new Set(characterIds));
+      }
       setInitialized(true);
     }
-  }, [data, autoAddCharacters, initialized]);
+  }, [data, autoAddCharacters, initialized, activeCombatantIds.size, setActiveCombatantIds]);
 
   // Only show entities that are in active combat
   const combatEntities = allCombatEntities.filter(e => activeCombatantIds.has(e.id));
@@ -60,9 +77,12 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
   };
 
   const updateCombatant = (entityId: string, updates: Partial<CombatantState>) => {
+    const entity = allCombatEntities.find(e => e.id === entityId);
+    if (!entity) return;
+    
     setCombatants(prev => ({
       ...prev,
-      [entityId]: { ...getCombatantState(combatEntities.find(e => e.id === entityId)!), ...prev[entityId], ...updates }
+      [entityId]: { ...getCombatantState(entity), ...prev[entityId], ...updates }
     }));
   };
 
@@ -251,6 +271,7 @@ export function CombatTracker({ data, entityTypes, onEntitySelect, selectedEntit
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
+                          e.preventDefault();
                           removeFromCombat(entity.id);
                         }}
                         title="Remove from combat"
