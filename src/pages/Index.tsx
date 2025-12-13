@@ -254,52 +254,80 @@ export default function Index() {
     setCampaignData(prev => {
       if (!prev) return prev;
       
-      // Get the old entity to compare associations
+      // Get the old entity to compare
       const oldEntity = prev.entities.find(e => e.id === updatedEntity.id);
-      const oldAssocs = oldEntity?.associatedEntities 
-        ? oldEntity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
-        : [];
-      const newAssocs = updatedEntity.associatedEntities 
-        ? updatedEntity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
-        : [];
+      const oldName = oldEntity?.name?.trim() || '';
+      const newName = updatedEntity.name?.trim() || '';
+      const nameChanged = oldName !== newName && oldName !== '';
       
-      // Find added and removed associations
-      const addedAssocs = newAssocs.filter((a: string) => !oldAssocs.includes(a));
-      const removedAssocs = oldAssocs.filter((a: string) => !newAssocs.includes(a));
+      // Parse associations safely
+      const parseAssocs = (str: string | undefined): string[] => {
+        if (!str) return [];
+        return str.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      };
       
+      const oldAssocs = parseAssocs(oldEntity?.associatedEntities);
+      const newAssocs = parseAssocs(updatedEntity.associatedEntities);
+      
+      // Find added and removed associations (case-insensitive comparison)
+      const addedAssocs = newAssocs.filter(a => !oldAssocs.includes(a));
+      const removedAssocs = oldAssocs.filter(a => !newAssocs.includes(a));
+      
+      // First, update the main entity
       let updatedEntities = prev.entities.map(e => 
         e.id === updatedEntity.id ? updatedEntity : e
       );
+      
+      // Handle name change - update all references
+      if (nameChanged) {
+        updatedEntities = updatedEntities.map(entity => {
+          if (entity.id === updatedEntity.id) return entity;
+          
+          const entityAssocs = entity.associatedEntities
+            ? entity.associatedEntities.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+          
+          // Find and replace the old name with the new name
+          const oldNameIdx = entityAssocs.findIndex(a => a.toLowerCase() === oldName.toLowerCase());
+          if (oldNameIdx !== -1) {
+            entityAssocs[oldNameIdx] = newName;
+            return { ...entity, associatedEntities: entityAssocs.join(', ') };
+          }
+          return entity;
+        });
+      }
       
       // Sync bidirectional associations
       updatedEntities = updatedEntities.map(entity => {
         if (entity.id === updatedEntity.id) return entity;
         
-        const entityAssocs = entity.associatedEntities 
-          ? entity.associatedEntities.split(',').map((s: string) => s.trim()).filter(Boolean)
+        const entityAssocs = entity.associatedEntities
+          ? entity.associatedEntities.split(',').map(s => s.trim()).filter(Boolean)
           : [];
         
+        let newEntityAssocs = [...entityAssocs];
         let modified = false;
         
         // If this entity was added as an association, add the current entity to it
-        if (addedAssocs.some((a: string) => a.toLowerCase() === entity.name.toLowerCase())) {
-          if (!entityAssocs.some((a: string) => a.toLowerCase() === updatedEntity.name.toLowerCase())) {
-            entityAssocs.push(updatedEntity.name);
+        if (addedAssocs.includes(entity.name.toLowerCase())) {
+          const alreadyHas = newEntityAssocs.some(a => a.toLowerCase() === newName.toLowerCase());
+          if (!alreadyHas) {
+            newEntityAssocs.push(newName);
             modified = true;
           }
         }
         
         // If this entity was removed as an association, remove the current entity from it
-        if (removedAssocs.some((a: string) => a.toLowerCase() === entity.name.toLowerCase())) {
-          const idx = entityAssocs.findIndex((a: string) => a.toLowerCase() === updatedEntity.name.toLowerCase());
-          if (idx !== -1) {
-            entityAssocs.splice(idx, 1);
+        if (removedAssocs.includes(entity.name.toLowerCase())) {
+          const filtered = newEntityAssocs.filter(a => a.toLowerCase() !== newName.toLowerCase());
+          if (filtered.length !== newEntityAssocs.length) {
+            newEntityAssocs = filtered;
             modified = true;
           }
         }
         
         if (modified) {
-          return { ...entity, associatedEntities: entityAssocs.join(', ') };
+          return { ...entity, associatedEntities: newEntityAssocs.join(', ') };
         }
         return entity;
       });

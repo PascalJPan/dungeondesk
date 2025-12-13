@@ -94,7 +94,10 @@ export function EntityEditor({ entity, data, entityTypes, onClose, onSave, onDel
           {typeDef?.attributes.map(attr => {
             const value = editedEntity[attr.key] || '';
             
-            return (
+              // Make long text fields (description, notes) taller
+              const isLongField = ['longDescription', 'description', 'notes', 'backstory', 'abilities'].includes(attr.key);
+              
+              return (
               <div key={attr.key} className="space-y-2">
                 <Label className="text-xs font-mono uppercase text-muted-foreground tracking-wider flex items-center gap-2">
                   {attr.label}
@@ -104,7 +107,7 @@ export function EntityEditor({ entity, data, entityTypes, onClose, onSave, onDel
                   value={value}
                   onChange={(e) => handleFieldChange(attr.key, e.target.value)}
                   placeholder={`Enter ${attr.label.toLowerCase()}...`}
-                  className="min-h-[80px] text-sm resize-none font-serif"
+                  className={`text-sm resize-y font-serif ${isLongField ? 'min-h-[180px]' : 'min-h-[100px]'}`}
                 />
               </div>
             );
