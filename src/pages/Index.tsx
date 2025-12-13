@@ -374,6 +374,72 @@ export default function Index() {
     if (!rightPanelOpen) setRightPanelOpen(true);
   }, [rightPanelOpen]);
 
+  const handleConnectionCreate = useCallback((sourceEntityId: string, targetEntityId: string) => {
+    setCampaignData(prev => {
+      if (!prev) return prev;
+      
+      const sourceEntity = prev.entities.find(e => e.id === sourceEntityId);
+      const targetEntity = prev.entities.find(e => e.id === targetEntityId);
+      if (!sourceEntity || !targetEntity) return prev;
+      
+      // Add bidirectional associations
+      const updatedEntities = prev.entities.map(entity => {
+        if (entity.id === sourceEntityId) {
+          const currentAssocs = entity.associatedEntities
+            ? entity.associatedEntities.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+          if (!currentAssocs.some(a => a.toLowerCase() === targetEntity.name.toLowerCase())) {
+            currentAssocs.push(targetEntity.name);
+          }
+          return { ...entity, associatedEntities: currentAssocs.join(', ') };
+        }
+        if (entity.id === targetEntityId) {
+          const currentAssocs = entity.associatedEntities
+            ? entity.associatedEntities.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+          if (!currentAssocs.some(a => a.toLowerCase() === sourceEntity.name.toLowerCase())) {
+            currentAssocs.push(sourceEntity.name);
+          }
+          return { ...entity, associatedEntities: currentAssocs.join(', ') };
+        }
+        return entity;
+      });
+      
+      return { ...prev, entities: updatedEntities };
+    });
+  }, []);
+
+  const handleConnectionDelete = useCallback((sourceEntityId: string, targetEntityId: string) => {
+    setCampaignData(prev => {
+      if (!prev) return prev;
+      
+      const sourceEntity = prev.entities.find(e => e.id === sourceEntityId);
+      const targetEntity = prev.entities.find(e => e.id === targetEntityId);
+      if (!sourceEntity || !targetEntity) return prev;
+      
+      // Remove bidirectional associations
+      const updatedEntities = prev.entities.map(entity => {
+        if (entity.id === sourceEntityId) {
+          const currentAssocs = entity.associatedEntities
+            ? entity.associatedEntities.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+          const filtered = currentAssocs.filter(a => a.toLowerCase() !== targetEntity.name.toLowerCase());
+          return { ...entity, associatedEntities: filtered.join(', ') };
+        }
+        if (entity.id === targetEntityId) {
+          const currentAssocs = entity.associatedEntities
+            ? entity.associatedEntities.split(',').map(s => s.trim()).filter(Boolean)
+            : [];
+          const filtered = currentAssocs.filter(a => a.toLowerCase() !== sourceEntity.name.toLowerCase());
+          return { ...entity, associatedEntities: filtered.join(', ') };
+        }
+        return entity;
+      });
+      
+      return { ...prev, entities: updatedEntities };
+    });
+  }, []);
+
   const handleSelectField = useCallback((entityId: string, fieldKey: string) => {
     const entity = campaignData?.entities.find(e => e.id === entityId);
     if (entity) {
@@ -511,6 +577,8 @@ export default function Index() {
               onEntitySelect={handleEntitySelect}
               selectedEntityId={selectedEntity?.id || null}
               onAddEntity={handleAddEntity}
+              onConnectionCreate={handleConnectionCreate}
+              onConnectionDelete={handleConnectionDelete}
             />
           )}
         </main>
