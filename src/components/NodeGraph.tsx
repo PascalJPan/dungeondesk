@@ -12,11 +12,10 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Plus, Lock, Unlock } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Toggle } from '@/components/ui/toggle';
 
 interface NodeGraphProps {
   data: CampaignData | null;
@@ -50,13 +49,13 @@ function CircleNode({ data }: NodeProps<{ entity: CampaignEntity; color: string;
           }}
         />
         <span 
-          className="text-[10px] font-serif text-center mt-1 max-w-[80px] leading-tight"
+          className="text-[10px] font-serif text-center mt-1 max-w-[120px] leading-tight"
           style={{ 
             color: 'hsl(var(--foreground))',
             textShadow: '0 1px 2px hsl(var(--background))',
           }}
         >
-          {data.entity.name.length > 15 ? data.entity.name.slice(0, 13) + '...' : data.entity.name}
+          {data.entity.name.length > 30 ? data.entity.name.slice(0, 28) + '...' : data.entity.name}
         </span>
       </div>
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
@@ -76,8 +75,8 @@ export function NodeGraph({
   selectedEntityId,
   onAddEntity,
 }: NodeGraphProps) {
-  // Default interactivity to OFF (nodes locked)
-  const [interactivityEnabled, setInteractivityEnabled] = useState(false);
+  // Filter state for entity types
+  const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
   
   // Build connections and count
   const { connectionMap, connectionCounts } = useMemo(() => {
@@ -106,12 +105,43 @@ export function NodeGraph({
     return { connectionMap: map, connectionCounts: counts };
   }, [data]);
 
+  // Filter entities based on hiddenTypes
+  const filteredData = useMemo(() => {
+    if (!data) return null;
+    return {
+      ...data,
+      entities: data.entities.filter(e => !hiddenTypes.has(e.type)),
+    };
+  }, [data, hiddenTypes]);
+
+  // Filter connectionMap based on visible entities
+  const filteredConnectionMap = useMemo(() => {
+    if (!filteredData) return new Map();
+    const visibleIds = new Set(filteredData.entities.map(e => e.id));
+    const filtered = new Map<string, Set<string>>();
+    
+    connectionMap.forEach((connected, entityId) => {
+      if (!visibleIds.has(entityId)) return;
+      const filteredConnected = new Set<string>();
+      connected.forEach(targetId => {
+        if (visibleIds.has(targetId)) {
+          filteredConnected.add(targetId);
+        }
+      });
+      if (filteredConnected.size > 0) {
+        filtered.set(entityId, filteredConnected);
+      }
+    });
+    
+    return filtered;
+  }, [filteredData, connectionMap]);
+
   const { initialNodes, initialEdges } = useMemo(() => {
-    if (!data || entityTypes.length === 0) return { initialNodes: [], initialEdges: [] };
+    if (!filteredData || entityTypes.length === 0) return { initialNodes: [], initialEdges: [] };
 
     // Group entities by type for clustering
     const entityGroups = new Map<string, CampaignEntity[]>();
-    data.entities.forEach(entity => {
+    filteredData.entities.forEach(entity => {
       if (!entityGroups.has(entity.type)) {
         entityGroups.set(entity.type, []);
       }
@@ -170,7 +200,7 @@ export function NodeGraph({
     // Pull connected entities closer together
     const iterations = 3;
     for (let iter = 0; iter < iterations; iter++) {
-      connectionMap.forEach((connected, entityId) => {
+      filteredConnectionMap.forEach((connected, entityId) => {
         const pos = positions.get(entityId);
         if (!pos) return;
         
@@ -192,7 +222,7 @@ export function NodeGraph({
     }
 
     // Create nodes
-    data.entities.forEach(entity => {
+    filteredData.entities.forEach(entity => {
       const pos = positions.get(entity.id);
       if (!pos) return;
       
@@ -210,11 +240,11 @@ export function NodeGraph({
       });
     });
 
-    // Build edges
+    // Build edges with smoothstep type for S-shaped curves
     const edges: Edge[] = [];
     const addedEdges = new Set<string>();
     
-    connectionMap.forEach((connected, entityId) => {
+    filteredConnectionMap.forEach((connected, entityId) => {
       connected.forEach(targetId => {
         const edgeKey = [entityId, targetId].sort().join('-');
         if (!addedEdges.has(edgeKey)) {
@@ -224,14 +254,14 @@ export function NodeGraph({
             source: entityId,
             target: targetId,
             style: { stroke: 'hsl(var(--muted-foreground) / 0.3)', strokeWidth: 1.5 },
-            type: 'straight',
+            type: 'smoothstep',
           });
         }
       });
     });
 
     return { initialNodes: nodes, initialEdges: edges };
-  }, [data, entityTypes, selectedEntityId, connectionCounts, connectionMap]);
+  }, [filteredData, entityTypes, selectedEntityId, connectionCounts, filteredConnectionMap]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -259,6 +289,25 @@ export function NodeGraph({
   const handlePaneClick = useCallback(() => {
     onEntitySelect(null);
   }, [onEntitySelect]);
+
+  const toggleTypeFilter = useCallback((typeKey: string) => {
+    setHiddenTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(typeKey)) {
+        next.delete(typeKey);
+      } else {
+        next.add(typeKey);
+      }
+      return next;
+    });
+  }, []);
+
+  // Get unique entity types from data
+  const presentTypes = useMemo(() => {
+    if (!data) return [];
+    const types = new Set(data.entities.map(e => e.type));
+    return entityTypes.filter(t => types.has(t.key));
+  }, [data, entityTypes]);
 
   if (!data || data.entities.length === 0) {
     return (
@@ -292,34 +341,14 @@ export function NodeGraph({
 
   return (
     <div className="h-full relative">
-      {/* Interactivity toggle */}
-      <div className="absolute top-4 right-4 z-10">
-        <Toggle
-          pressed={interactivityEnabled}
-          onPressedChange={setInteractivityEnabled}
-          aria-label="Toggle node interactivity"
-          className="bg-card border border-border"
-        >
-          {interactivityEnabled ? (
-            <Unlock className="w-4 h-4 mr-1" />
-          ) : (
-            <Lock className="w-4 h-4 mr-1" />
-          )}
-          <span className="text-xs font-serif">
-            {interactivityEnabled ? 'Unlocked' : 'Locked'}
-          </span>
-        </Toggle>
-      </div>
-      
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={interactivityEnabled ? onNodesChange : undefined}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
         nodeTypes={nodeTypes}
-        nodesDraggable={interactivityEnabled}
+        nodesDraggable={false}
         nodesConnectable={false}
         fitView
         fitViewOptions={{ padding: 0.4 }}
@@ -335,6 +364,30 @@ export function NodeGraph({
           className="!bg-card"
         />
       </ReactFlow>
+      
+      {/* Type filter buttons at bottom center */}
+      {presentTypes.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex gap-2 bg-card/80 backdrop-blur-sm border border-border rounded-lg p-2">
+          {presentTypes.map(typeDef => {
+            const isHidden = hiddenTypes.has(typeDef.key);
+            return (
+              <button
+                key={typeDef.key}
+                onClick={() => toggleTypeFilter(typeDef.key)}
+                className={cn(
+                  "w-6 h-6 rounded-full border-2 transition-all duration-200",
+                  isHidden ? "opacity-30 scale-90" : "opacity-100 scale-100 hover:scale-110"
+                )}
+                style={{
+                  backgroundColor: typeDef.color,
+                  borderColor: isHidden ? 'transparent' : 'white',
+                }}
+                title={`${isHidden ? 'Show' : 'Hide'} ${typeDef.label}`}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
