@@ -119,7 +119,8 @@ export default function Index() {
   const handleProcess = useCallback(async (
     text: string, 
     extractionOptions: ExtractionOptions,
-    keepExisting: boolean
+    keepExisting: boolean,
+    openAiApiKey: string
   ) => {
     const startTime = Date.now();
     
@@ -132,37 +133,78 @@ export default function Index() {
 
       const existingEntities = campaignData?.entities || [];
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-mindmap`, {
+      // Build prompt for OpenAI
+      const entitySchemas = extractionOptions.entityTypes.map(type => {
+        const attrs = type.attributes.map(attr => `"${attr.key}": ""`).join(', ');
+        return `{ "id": "${type.key}-N", "type": "${type.key}", "name": "...", ${attrs} }`;
+      }).join('\n');
+
+      const settings = extractionOptions.promptSettings || {
+        contentLanguage: 'English',
+        tone: 'High Fantasy',
+        inferLevel: 3,
+      };
+
+      const systemPrompt = `You extract D&D/TTRPG campaign entities from text. Output ONLY valid JSON.
+Language: ${settings.contentLanguage}. Tone: ${settings.tone}.
+Infer missing info: ${settings.inferLevel <= 2 ? 'rarely' : settings.inferLevel >= 4 ? 'often' : 'sometimes'}.
+
+Entity types: ${extractionOptions.entityTypes.map(t => `${t.label} (${t.key})`).join(', ')}
+
+Output format:
+{"entities": [${entitySchemas}]}
+
+Rules:
+- Each entity needs unique id: "type-N" (e.g., character-1)
+- shortDescription is required for all entities
+- associatedEntities: comma-separated names of related entities
+- Use consistent names when referencing the same entity`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'Authorization': `Bearer ${openAiApiKey}`,
         },
-        body: JSON.stringify({ 
-          text,
-          extractionOptions,
-          existingEntities: keepExisting ? existingEntities : [],
-          keepExisting,
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Extract campaign entities from this text:\n\n${text.substring(0, 50000)}` }
+          ],
+          temperature: 0.2,
         }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to extract campaign data');
+        if (response.status === 401) {
+          throw new Error('Invalid API key. Please check your OpenAI API key.');
+        }
+        throw new Error(error.error?.message || 'Failed to call OpenAI API');
       }
 
       setProcessingState({
         status: 'filling',
         progress: 60,
-        message: 'Filling entity details...',
+        message: 'Processing response...',
       });
 
-      const result = await response.json();
+      const data = await response.json();
+      const content = data.choices[0]?.message?.content || '';
+      
+      // Parse JSON from response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not parse AI response');
+      }
+      
+      const result = JSON.parse(jsonMatch[0]);
       const processingTime = Date.now() - startTime;
 
       const finalEntities = keepExisting 
-        ? mergeEntities(existingEntities, result.entities)
-        : result.entities;
+        ? mergeEntities(existingEntities, result.entities || [])
+        : (result.entities || []);
 
       setCampaignData({
         entities: finalEntities,
@@ -179,8 +221,8 @@ export default function Index() {
       toast({
         title: "Campaign extracted",
         description: keepExisting 
-          ? `Merged ${result.entities.length} entities (${addedCount} new)`
-          : `Found ${result.entities.length} entities`,
+          ? `Merged ${(result.entities || []).length} entities (${addedCount} new)`
+          : `Found ${(result.entities || []).length} entities`,
       });
 
     } catch (error) {
@@ -358,23 +400,45 @@ export default function Index() {
   }, [campaignData, entityTypes, mergeEntities, cleanAndSyncAssociations, fixDuplicateIds]);
 
   const handleExport = useCallback(() => {
-    if (!campaignData) return;
-
     const combatState: CombatState = {
       combatants,
       activeCombatantIds: Array.from(activeCombatantIds),
       round: combatRound,
       currentTurnId,
     };
+
+    // Import the prompt generator
+    const chatGptPrompt = `## ChatGPT Instructions for Campaign JSON
+
+### Mode 1: Update Existing Entities
+Modify entities while preserving: all IDs, structure, metadata, entityTypes, promptSettings.
+Output the complete JSON with your changes.
+
+### Mode 2: Create New Entities
+Output ONLY this structure for merging:
+{"version":"1.0","entities":[{"id":"type-N","type":"...","name":"...",...}]}
+Then paste into JSON field and Import.
+
+### Settings
+- Language: ${promptSettings.contentLanguage}
+- Tone: ${promptSettings.tone}
+- Infer Missing: ${promptSettings.inferLevel <= 2 ? 'Rarely' : promptSettings.inferLevel >= 4 ? 'Often' : 'Sometimes'}
+
+### Entity Types
+${entityTypes.map(t => `- ${t.label} (${t.key}): ${t.attributes.map(a => a.label).join(', ')}`).join('\n')}
+
+### ID Format
+Use "type-N" format (e.g., character-1, location-2). Increment numbers for new entities.`;
     
     const exportData: CampaignExport = {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       metadata: campaignMetadata,
       entityTypes: entityTypes,
-      entities: campaignData.entities,
+      entities: campaignData?.entities || [],
       promptSettings: promptSettings,
-      combatState: combatState,
+      combatState: campaignData ? combatState : undefined,
+      chatGptPrompt: chatGptPrompt,
     };
     
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -501,6 +565,14 @@ export default function Index() {
     setSelectedEntity(null);
     toast({
       title: "Entity deleted",
+    });
+  }, []);
+
+  const handleClearAllEntities = useCallback(() => {
+    setCampaignData(null);
+    setSelectedEntity(null);
+    toast({
+      title: "All entities cleared",
     });
   }, []);
 
@@ -670,6 +742,7 @@ export default function Index() {
               onPromptSettingsChange={setPromptSettings}
               campaignMetadata={campaignMetadata}
               onCampaignMetadataChange={setCampaignMetadata}
+              onClearAllEntities={handleClearAllEntities}
             />
           )}
         </aside>

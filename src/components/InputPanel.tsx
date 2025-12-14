@@ -145,7 +145,7 @@ interface MergeDialogData {
 }
 
 interface InputPanelProps {
-  onProcess: (text: string, extractionOptions: ExtractionOptions, keepExisting: boolean) => void;
+  onProcess: (text: string, extractionOptions: ExtractionOptions, keepExisting: boolean, openAiApiKey: string) => void;
   onImport: (data: CampaignExport, keepEntities: boolean, keepMetadata: boolean, mergeTypes: boolean) => void;
   onExport: () => void;
   processingState: ProcessingState;
@@ -159,6 +159,7 @@ interface InputPanelProps {
   onPromptSettingsChange: (settings: PromptSettings) => void;
   campaignMetadata: CampaignMetadata;
   onCampaignMetadataChange: (metadata: CampaignMetadata) => void;
+  onClearAllEntities: () => void;
 }
 
 interface DeleteWarning {
@@ -167,6 +168,31 @@ interface DeleteWarning {
   attributeKey?: string;
   affectedCount: number;
   onConfirm: () => void;
+}
+
+// Generate ChatGPT prompt for JSON export
+export function generateChatGptPromptForJson(entityTypes: EntityTypeDef[], promptSettings: PromptSettings): string {
+  return `## ChatGPT Instructions for Campaign JSON
+
+### Mode 1: Update Existing Entities
+Modify entities while preserving: all IDs, structure, metadata, entityTypes, promptSettings.
+Output the complete JSON with your changes.
+
+### Mode 2: Create New Entities
+Output ONLY this structure for merging:
+{"version":"1.0","entities":[{"id":"type-N","type":"...","name":"...",...}]}
+Then paste into JSON field and Import.
+
+### Settings
+- Language: ${promptSettings.contentLanguage}
+- Tone: ${promptSettings.tone}
+- Infer Missing: ${INFER_LEVEL_LABELS[promptSettings.inferLevel]}
+
+### Entity Types
+${entityTypes.map(t => `- ${t.label} (${t.key}): ${t.attributes.map(a => a.label).join(', ')}`).join('\n')}
+
+### ID Format
+Use "type-N" format (e.g., character-1, location-2). Increment numbers for new entities.`;
 }
 
 export function InputPanel({ 
@@ -184,6 +210,7 @@ export function InputPanel({
   onPromptSettingsChange,
   campaignMetadata,
   onCampaignMetadataChange,
+  onClearAllEntities,
 }: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -191,11 +218,12 @@ export function InputPanel({
   const [isExtracting, setIsExtracting] = useState(false);
   const [openEntityTypes, setOpenEntityTypes] = useState<string[]>([]);
   const [keepExistingEntities, setKeepExistingEntities] = useState(true);
-  const [keepExistingMetadata, setKeepExistingMetadata] = useState(true);
+  const [keepExistingMetadata, setKeepExistingMetadata] = useState(false);
   const [deleteWarning, setDeleteWarning] = useState<DeleteWarning | null>(null);
   const [jsonInput, setJsonInput] = useState('');
   const [pendingImport, setPendingImport] = useState<CampaignExport | null>(null);
   const [mergeDialog, setMergeDialog] = useState<MergeDialogData | null>(null);
+  const [openAiApiKey, setOpenAiApiKey] = useState('');
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
@@ -410,13 +438,14 @@ export function InputPanel({
   }, [handleJsonFileUpload]);
 
   const handleGenerate = () => {
-    if (!inputText.trim() || entityTypes.length === 0) return;
+    if (!inputText.trim() || entityTypes.length === 0 || !openAiApiKey.trim()) return;
     
     const extractionOptions: ExtractionOptions = {
       entityTypes: entityTypes,
+      promptSettings: promptSettings,
     };
     
-    onProcess(inputText, extractionOptions, keepExistingEntities);
+    onProcess(inputText, extractionOptions, keepExistingEntities, openAiApiKey);
   };
 
   // Detect new entity types and attributes
@@ -492,7 +521,7 @@ export function InputPanel({
     setPendingImport(null);
   };
 
-  const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && entityTypes.length > 0;
+  const canGenerate = inputText.trim().length > 50 && !isProcessing && !isExtracting && entityTypes.length > 0 && openAiApiKey.trim().length > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -783,7 +812,7 @@ export function InputPanel({
                 Copy Prompt for External AI
               </Button>
               <p className="text-xs text-muted-foreground mt-2 font-serif">
-                Copy a prompt to use with ChatGPT or other AI to generate compatible JSON
+                Copy a prompt to use with ChatGPT or other AI to generate compatible JSON from scratch
               </p>
             </div>
           </div>
@@ -797,6 +826,23 @@ export function InputPanel({
               <h2 className="text-lg font-display text-foreground">AI Extraction</h2>
               <p className="text-sm text-muted-foreground font-serif">
                 Upload PDF or paste text for AI extraction
+              </p>
+            </div>
+
+            {/* OpenAI API Key Input */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                OpenAI API Key
+              </Label>
+              <Input
+                type="password"
+                value={openAiApiKey}
+                onChange={(e) => setOpenAiApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="h-8 text-sm font-mono"
+              />
+              <p className="text-xs text-muted-foreground font-serif">
+                Your API key is only used in your browser and not stored
               </p>
             </div>
 
@@ -919,17 +965,15 @@ export function InputPanel({
               </p>
             </div>
 
-            {/* Export Button */}
-            {hasData && (
-              <Button 
-                variant="outline" 
-                className="w-full font-serif"
-                onClick={onExport}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export Campaign JSON
-              </Button>
-            )}
+            {/* Export Button - always visible */}
+            <Button 
+              variant="outline" 
+              className="w-full font-serif"
+              onClick={onExport}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Campaign JSON
+            </Button>
 
             {/* JSON File Upload */}
             <div
@@ -1008,6 +1052,18 @@ export function InputPanel({
               className="w-full font-serif"
             >
               Import JSON
+            </Button>
+
+            {/* Clear All Entities Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full font-serif text-muted-foreground border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
+              onClick={onClearAllEntities}
+              disabled={!hasData}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear All Entities
             </Button>
           </div>
         </TabsContent>
