@@ -196,6 +196,7 @@ export interface CampaignExport {
   entities: CampaignEntity[];
   promptSettings?: PromptSettings;
   combatState?: CombatState;
+  chatGptPrompt?: string;
 }
 
 // Processing state
