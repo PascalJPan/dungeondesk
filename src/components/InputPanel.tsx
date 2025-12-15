@@ -164,11 +164,19 @@ export function InputPanel({
     ));
   };
 
-  const handleUpdateEntityTypeKey = (oldKey: string, newLabel: string) => {
-    const newKey = newLabel.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  const handleUpdateEntityTypeLabel = (key: string, newLabel: string) => {
     onEntityTypesChange(entityTypes.map(t => 
-      t.key === oldKey ? { ...t, key: newKey || oldKey, label: newLabel } : t
+      t.key === key ? { ...t, label: newLabel } : t
     ));
+  };
+
+  const handleFinalizeEntityTypeKey = (oldKey: string, label: string) => {
+    const newKey = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    if (newKey && newKey !== oldKey) {
+      onEntityTypesChange(entityTypes.map(t => 
+        t.key === oldKey ? { ...t, key: newKey } : t
+      ));
+    }
   };
 
   const handleAddAttribute = (typeKey: string) => {
@@ -557,7 +565,8 @@ export function InputPanel({
                         </Label>
                         <Input
                           value={typeDef.label}
-                          onChange={(e) => handleUpdateEntityTypeKey(typeDef.key, e.target.value)}
+                          onChange={(e) => handleUpdateEntityTypeLabel(typeDef.key, e.target.value)}
+                          onBlur={() => handleFinalizeEntityTypeKey(typeDef.key, typeDef.label)}
                           className="h-8 text-sm font-serif"
                           placeholder="Entity type name"
                         />
