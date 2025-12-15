@@ -289,11 +289,32 @@ Rules:
       const result = JSON.parse(jsonMatch[0]);
       const processingTime = Date.now() - startTime;
 
-      // Ensure all extracted entities have review:false
-      const extractedEntities = (result.entities || []).map((e: CampaignEntity) => ({
-        ...e,
-        review: false,
-      }));
+      // Deduplicate extracted entities by name+type and ensure unique IDs
+      const rawEntities = (result.entities || []) as CampaignEntity[];
+      const seenNameType = new Set<string>();
+      const usedIds = new Set<string>(existingEntities.map(e => e.id));
+      
+      const extractedEntities: CampaignEntity[] = [];
+      rawEntities.forEach(e => {
+        const key = `${e.type}:${e.name.toLowerCase()}`;
+        if (seenNameType.has(key)) return; // Skip duplicate name+type
+        seenNameType.add(key);
+        
+        // Ensure unique ID
+        let entityId = e.id;
+        if (usedIds.has(entityId)) {
+          const baseType = entityId.replace(/-\d+$/, '') || e.type;
+          let counter = 1;
+          entityId = `${baseType}-${counter}`;
+          while (usedIds.has(entityId)) {
+            counter++;
+            entityId = `${baseType}-${counter}`;
+          }
+        }
+        usedIds.add(entityId);
+        
+        extractedEntities.push({ ...e, id: entityId, review: false });
+      });
 
       const finalEntities = keepExisting 
         ? mergeEntities(existingEntities, extractedEntities)

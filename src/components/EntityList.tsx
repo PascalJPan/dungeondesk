@@ -32,6 +32,16 @@ export function EntityList({
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showNeedsReviewOnly, setShowNeedsReviewOnly] = React.useState(false);
 
+  // Count entities needing review
+  const needsReviewCount = data?.entities.filter(e => e.review === false).length || 0;
+
+  // Auto-turn off filter when no more entities need review
+  React.useEffect(() => {
+    if (showNeedsReviewOnly && needsReviewCount === 0) {
+      setShowNeedsReviewOnly(false);
+    }
+  }, [needsReviewCount, showNeedsReviewOnly]);
+
   const toggleSection = (key: string) => {
     setOpenSections(prev => 
       prev.includes(key) 
@@ -112,9 +122,6 @@ export function EntityList({
     
     filteredGroups[typeDef.key] = filtered;
   });
-
-  // Count entities needing review
-  const needsReviewCount = data.entities.filter(e => e.review === false).length;
 
   const handleEntityClick = (entity: CampaignEntity, e: React.MouseEvent) => {
     if (onMultiSelectEntity && (e.ctrlKey || e.metaKey)) {

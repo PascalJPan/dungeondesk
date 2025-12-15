@@ -100,15 +100,25 @@ export function EntityPanel({
   };
 
   // Get available entities to add as associations (exclude self and already associated)
+  // Sorted by entity type order, then alphabetically by name
   const getAvailableEntities = () => {
     const currentAssocs = editedEntity?.associatedEntities
       ? editedEntity.associatedEntities.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
       : [];
     
-    return entities.filter(e => 
+    const available = entities.filter(e => 
       e.id !== entity.id && 
       !currentAssocs.includes(e.name.toLowerCase())
     );
+    
+    // Sort by entity type order, then alphabetically by name
+    const typeOrder = new Map(entityTypes.map((t, i) => [t.key, i]));
+    return available.sort((a, b) => {
+      const typeA = typeOrder.get(a.type) ?? 999;
+      const typeB = typeOrder.get(b.type) ?? 999;
+      if (typeA !== typeB) return typeA - typeB;
+      return a.name.localeCompare(b.name);
+    });
   };
 
   const handleAddAssociation = (entityName: string) => {
