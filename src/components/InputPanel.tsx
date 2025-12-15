@@ -799,7 +799,7 @@ export function InputPanel({
               {/* Reset All Settings Button */}
               <div className="pt-6 border-t border-border">
                 <Button
-                  variant="destructive"
+                  variant="outline"
                   size="lg"
                   className="w-full font-serif"
                   onClick={handleResetAllSettings}
