@@ -480,7 +480,7 @@ export function InputPanel({
                   id="campaign-description"
                   value={campaignMetadata.description || ''}
                   onChange={(e) => onCampaignMetadataChange({ ...campaignMetadata, description: e.target.value })}
-                  placeholder="Describe your campaign setting, themes, and lore. This helps the AI match the tone and make relevant associations when extracting entities..."
+                  placeholder="Describe your campaign setting, themes, and lore..."
                   className="font-serif min-h-[80px] resize-y"
                 />
               </div>
