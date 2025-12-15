@@ -9,135 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS, CampaignData, CampaignMetadata } from '@/types/mindmap';
+import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS, CampaignData, CampaignMetadata, DEFAULT_SYSTEM_PROMPT } from '@/types/mindmap';
 import { Slider } from '@/components/ui/slider';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
-function generateExternalPrompt(entityTypes: EntityTypeDef[], promptSettings: PromptSettings): string {
-  const entitySchemas = entityTypes.map(type => {
-    const attrs = type.attributes.map(attr => `    "${attr.key}": "string" // ${attr.label}`).join(',\n');
-    return `  // ${type.label}
-  {
-    "id": "${type.key}-1",
-    "type": "${type.key}",
-    "name": "Entity Name",
-${attrs}
-  }`;
-  }).join(',\n\n');
-
-  const getInferGuidance = (level: number): string => {
-    switch (level) {
-      case 1:
-        return `When information is missing or unclear:
-- Leave fields as "" (empty) if truly unknown
-- Do NOT write "Unknown", "N/A", or placeholder text
-- Empty means the DM should fill this in later`;
-      case 2:
-        return `When information is missing or unclear:
-- Leave most fields empty if unknown
-- Only infer very obvious details that are strongly implied by context
-- Prefer empty over guessing`;
-      case 3:
-        return `When information is missing or unclear:
-- Make reasonable inferences when context provides good hints
-- Leave empty if no clear context clues exist
-- Balance between empty fields and educated guesses`;
-      case 4:
-        return `When information is missing or unclear:
-- Infer details based on context and setting conventions
-- Only leave empty if absolutely no basis for inference
-- Make educated guesses that fit the ${promptSettings.tone} tone`;
-      case 5:
-        return `When information is missing or unclear:
-- Always fill in details, inferring or fabricating as needed
-- Make creative additions that fit the ${promptSettings.tone} setting
-- Never leave fields empty - invent plausible content`;
-      default:
-        return '';
-    }
-  };
-
-  const missingDataGuidance = getInferGuidance(promptSettings.inferLevel);
-
-  return `You are helping create a D&D/TTRPG campaign. Generate entities in the following JSON format.
-
-## Content Settings:
-- **Language**: Generate all content in ${promptSettings.contentLanguage}
-- **Tone/Setting**: ${promptSettings.tone}
-
-IMPORTANT: Output ONLY valid JSON, no explanations.
-
-## Full JSON Structure (for new campaigns):
-{
-  "version": "1.0",
-  "entities": [
-${entitySchemas}
-  ],
-  "entityTypes": ${JSON.stringify(entityTypes, null, 2)}
-}
-
-## Adding to Existing Data:
-To add entities to an existing campaign (without replacing), use this minimal structure:
-{
-  "version": "1.0",
-  "entities": [
-    { "id": "character-5", "type": "character", "name": "New Character", "shortDescription": "..." }
-  ]
-}
-Note: When adding entities, "entityTypes" can be omitted if using existing types. Make sure IDs are unique (increment numbers).
-
-## Entity Types and Attributes:
-${entityTypes.map(type => {
-  return `- ${type.label} (type: "${type.key}")${type.extractionPrompt ? `\n  Guidance: ${type.extractionPrompt}` : ''}
-  Attributes: ${type.attributes.map(a => a.label).join(', ')}`;
-}).join('\n\n')}
-
-## Attack Format (for Characters & Monsters):
-The "attacks" field should be a comma-separated list of attacks in this format:
-"Attack Name: XWY+Z" where X=number of dice, W=die type, Y=die size, Z=bonus
-Examples:
-- "Longsword: 1W8+3, Dagger: 1W4+2"
-- "Bite: 2W6+4, Claw: 1W8+2, Tail Sweep: 1W10"
-- "Crossbow: 1W10+1"
-Use German "W" notation (1W6 = 1d6). Multiple attacks separated by comma.
-
-## Stat Formats:
-- "healthPoints": Number only (e.g., "45", "120")
-- "armorClass": Number only (e.g., "15", "18")
-- "speed": Number in feet (e.g., "30", "40")
-
-## Relationship Format:
-For "relationships" attribute, list ONLY the names of related entities as comma-separated string.
-Example: "Lord Blackwood, Queen Elara, The Merchant Guild"
-
-## Naming Consistency:
-When referencing the same entity, ALWAYS use the exact same name throughout.
-"Lord Blackwood", "Blackwood", and "the Lord" should all be unified to ONE consistent name.
-
-## Long Descriptions:
-For long description fields (longDescription, background, etc.):
-- Use line breaks between paragraphs for readability
-- Separate distinct topics or sections with blank lines
-- Detailed descriptions (longDescription, background) should be at least 3 sentences
-- If not enough material for 3 sentences AND inference level is low, leave the field empty instead
-
-## Detailed Description Length:
-- "longDescription", "background", and similar in-depth fields: minimum 3 sentences or leave empty
-- If inference is enabled (Sometimes/Often/Always), you may expand brief mentions into fuller descriptions
-- Prefer quality over quantity - a well-written 3-sentence description is better than padding
-
-## Handling Missing Information:
-${missingDataGuidance}
-
-## Important Rules:
-- Each entity MUST have a unique id: "type-number" (e.g., "character-1", "location-2")
-- Every entity MUST have a "shortDescription" (required field)
-- For "associatedEntities", list related entity names as comma-separated string
-
-Generate entities based on the campaign content I provide.`;
-}
 
 interface MergeDialogData {
   newEntityTypes: EntityTypeDef[];
@@ -794,26 +671,30 @@ export function InputPanel({
                     <span>Always</span>
                   </div>
                 </div>
-              </div>
 
-              <Button
-                variant="outline"
-                className="w-full font-serif"
-                onClick={() => {
-                  const prompt = generateExternalPrompt(entityTypes, promptSettings);
-                  navigator.clipboard.writeText(prompt);
-                  toast({
-                    title: "Prompt copied",
-                    description: "Use this prompt with ChatGPT or other AI tools",
-                  });
-                }}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copy Prompt for External AI
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2 font-serif">
-                Copy a prompt to use with ChatGPT or other AI to generate compatible JSON from scratch
-              </p>
+                {/* System Prompt for JSON Export */}
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                    System Prompt (included in JSON export)
+                  </Label>
+                  <Textarea
+                    value={promptSettings.systemPrompt}
+                    onChange={(e) => onPromptSettingsChange({ ...promptSettings, systemPrompt: e.target.value })}
+                    className="min-h-[120px] text-xs font-mono resize-none"
+                    placeholder="Rules for ChatGPT when processing this JSON..."
+                  />
+                  <div className="flex items-center gap-2 mt-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs font-serif text-muted-foreground"
+                      onClick={() => onPromptSettingsChange({ ...promptSettings, systemPrompt: DEFAULT_SYSTEM_PROMPT })}
+                    >
+                      Reset to Default
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </TabsContent>
@@ -965,15 +846,84 @@ export function InputPanel({
               </p>
             </div>
 
-            {/* Export Button - always visible */}
-            <Button 
-              variant="outline" 
-              className="w-full font-serif"
-              onClick={onExport}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export Campaign JSON
-            </Button>
+            {/* Export & Copy Buttons */}
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1 font-serif"
+                onClick={onExport}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export JSON
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1 font-serif"
+                onClick={() => {
+                  // Generate the same export data inline for copy
+                  const exportData: CampaignExport = {
+                    version: '1.0',
+                    exportedAt: new Date().toISOString(),
+                    metadata: campaignMetadata,
+                    entityTypes: entityTypes,
+                    entities: campaignData?.entities || [],
+                    promptSettings: promptSettings,
+                  };
+                  
+                  // Generate chatGptPrompt inline
+                  const entityExamples = entityTypes.map(t => {
+                    const exampleAttrs: Record<string, string> = {
+                      id: `${t.key}-1`,
+                      type: t.key,
+                      name: `Example ${t.label}`,
+                    };
+                    t.attributes.forEach(attr => {
+                      if (attr.key === 'attacks') {
+                        exampleAttrs[attr.key] = 'Longsword: +4 | 1d8+5 slashing\nDagger: +2 | 1d4+3 piercing\nFirecast: +5 | 50% Burning';
+                      } else if (attr.key === 'associatedEntities') {
+                        exampleAttrs[attr.key] = 'Aragorn, Legolas, Gimli';
+                      } else {
+                        exampleAttrs[attr.key] = `[${attr.label} here]`;
+                      }
+                    });
+                    return JSON.stringify(exampleAttrs, null, 2);
+                  }).join('\n\n');
+
+                  exportData.chatGptPrompt = `## ChatGPT Instructions for Dungeon Desk JSON
+
+${promptSettings.systemPrompt}
+
+### Mode 1: Update Existing Entities
+Modify the entities array while preserving: all IDs, structure, metadata, entityTypes, promptSettings.
+Output the complete JSON with your changes.
+
+### Mode 2: Create New Entities
+Output ONLY this structure for merging:
+{"version":"1.0","entities":[...your new entities...]}
+Then paste into JSON field and Import with "Keep existing entities" checked.
+
+### Settings
+- Language: ${promptSettings.contentLanguage}
+- Tone: ${promptSettings.tone}
+- Infer Missing: ${promptSettings.inferLevel <= 2 ? 'Rarely' : promptSettings.inferLevel >= 4 ? 'Often' : 'Sometimes'}
+
+### Entity Types & Attributes
+${entityTypes.map(t => `**${t.label}** (type: "${t.key}")\nAttributes: ${t.attributes.map(a => `${a.key}`).join(', ')}`).join('\n\n')}
+
+### Example Entities (follow this structure EXACTLY)
+${entityExamples}`;
+
+                  navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
+                  toast({
+                    title: "JSON copied",
+                    description: "Campaign JSON copied to clipboard",
+                  });
+                }}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy JSON
+              </Button>
+            </div>
 
             {/* JSON File Upload */}
             <div

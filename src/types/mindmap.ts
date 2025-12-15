@@ -146,12 +146,22 @@ export interface PromptSettings {
   contentLanguage: string;
   tone: string;
   inferLevel: number; // 1=never, 2=rarely, 3=sometimes, 4=often, 5=always
+  systemPrompt: string; // Custom system prompt for ChatGPT in JSON export
 }
+
+export const DEFAULT_SYSTEM_PROMPT = `STRICT RULES:
+- ALL attributes must be flat strings (no nested objects, no arrays)
+- Use ONLY the exact attribute keys listed in entityTypes
+- Do NOT add unlisted fields (no "tags", "stats", "level", "class", etc.)
+- For associated entities: use comma-separated names (e.g., "Aragorn, Legolas, Gimli")
+- For attacks: use format "Name: +modifier | damage [type]" per line (e.g., "Longsword: +4 | 1d8+5 slashing\\nFirecast: +5 | 50% Burning")
+- IDs must use "type-N" format (e.g., character-1, location-2)`;
 
 export const DEFAULT_PROMPT_SETTINGS: PromptSettings = {
   contentLanguage: 'English',
   tone: 'High Fantasy',
   inferLevel: 3, // Sometimes by default
+  systemPrompt: DEFAULT_SYSTEM_PROMPT,
 };
 
 export const INFER_LEVEL_LABELS: Record<number, string> = {
