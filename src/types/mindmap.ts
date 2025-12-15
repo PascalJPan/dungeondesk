@@ -156,9 +156,10 @@ export const DEFAULT_SYSTEM_PROMPT = `STRICT RULES:
 - Do NOT add unlisted fields (no "tags", "stats", "level", "class", etc.)
 - For associated entities: use comma-separated names (e.g., "Aragorn, Legolas, Gimli")
 - For attacks: use format "Name: +modifier | damage [type]" per line (e.g., "Longsword: +4 | 1d8+5 slashing\\nFirecast: +5 | 50% Burning")
-- For speed: default is "9" (always in meters as a string)
+- For speed: default is "9" (always in meters, unit not included in string)
 - IDs must use "type-N" format (e.g., character-1, location-2)
-- Every new/imported entity must have "review": false (needs review)`;
+- Every new/imported entity must have "review": false (needs review)
+- The FIRST PARAGRAPH of detailedDescription must be a vivid, immersive introduction for players (2-3 sentences max)`;
 
 export const DEFAULT_PROMPT_SETTINGS: PromptSettings = {
   contentLanguage: 'English',
