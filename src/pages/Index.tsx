@@ -81,7 +81,17 @@ export default function Index() {
     const loadedPlacedCards = storage.loadPlacedCards();
 
     if (loadedCampaignData) setCampaignData(loadedCampaignData);
-    if (loadedEntityTypes) setEntityTypes(loadedEntityTypes);
+    if (loadedEntityTypes) {
+      // Merge loaded types with defaults to ensure new properties like combatEligible are applied
+      const mergedTypes = loadedEntityTypes.map(loadedType => {
+        const defaultType = DEFAULT_ENTITY_TYPES.find(d => d.key === loadedType.key);
+        if (defaultType && loadedType.combatEligible === undefined) {
+          return { ...loadedType, combatEligible: defaultType.combatEligible };
+        }
+        return loadedType;
+      });
+      setEntityTypes(mergedTypes);
+    }
     if (loadedPromptSettings) setPromptSettings(loadedPromptSettings);
     if (loadedMetadata) setCampaignMetadata(loadedMetadata);
     if (loadedCombatState) {
