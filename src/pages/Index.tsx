@@ -407,28 +407,48 @@ Rules:
       currentTurnId,
     };
 
-    // Import the prompt generator
-    const chatGptPrompt = `## ChatGPT Instructions for Campaign JSON
+    // Generate dynamic ChatGPT prompt based on current entity types
+    const entityExamples = entityTypes.map(t => {
+      const exampleAttrs: Record<string, string> = {
+        id: `${t.key}-1`,
+        type: t.key,
+        name: `Example ${t.label}`,
+      };
+      t.attributes.forEach(attr => {
+        if (attr.key === 'attacks') {
+          exampleAttrs[attr.key] = 'Longsword: +4 | 1d8+5 slashing\nDagger: +2 | 1d4+3 piercing\nFirecast: +5 | 50% Burning';
+        } else if (attr.key === 'associatedEntities') {
+          exampleAttrs[attr.key] = 'Aragorn, Legolas, Gimli';
+        } else {
+          exampleAttrs[attr.key] = `[${attr.label} here]`;
+        }
+      });
+      return JSON.stringify(exampleAttrs, null, 2);
+    }).join('\n\n');
+
+    const chatGptPrompt = `## ChatGPT Instructions for Dungeon Desk JSON
+
+${promptSettings.systemPrompt}
 
 ### Mode 1: Update Existing Entities
-Modify entities while preserving: all IDs, structure, metadata, entityTypes, promptSettings.
+Modify the entities array while preserving: all IDs, structure, metadata, entityTypes, promptSettings.
 Output the complete JSON with your changes.
 
 ### Mode 2: Create New Entities
 Output ONLY this structure for merging:
-{"version":"1.0","entities":[{"id":"type-N","type":"...","name":"...",...}]}
-Then paste into JSON field and Import.
+{"version":"1.0","entities":[...your new entities...]}
+Then paste into JSON field and Import with "Keep existing entities" checked.
 
 ### Settings
 - Language: ${promptSettings.contentLanguage}
 - Tone: ${promptSettings.tone}
 - Infer Missing: ${promptSettings.inferLevel <= 2 ? 'Rarely' : promptSettings.inferLevel >= 4 ? 'Often' : 'Sometimes'}
 
-### Entity Types
-${entityTypes.map(t => `- ${t.label} (${t.key}): ${t.attributes.map(a => a.label).join(', ')}`).join('\n')}
+### Entity Types & Attributes
+${entityTypes.map(t => `**${t.label}** (type: "${t.key}")\nAttributes: ${t.attributes.map(a => `${a.key}`).join(', ')}`).join('\n\n')}
 
-### ID Format
-Use "type-N" format (e.g., character-1, location-2). Increment numbers for new entities.`;
+### Example Entities (follow this structure EXACTLY)
+${entityExamples}`;
     
     const exportData: CampaignExport = {
       version: '1.0',
@@ -674,7 +694,7 @@ Use "type-N" format (e.g., character-1, location-2). Increment numbers for new e
             <BookOpen className="w-5 h-5 text-primary" />
           </div>
           <h1 className="font-display text-xl text-foreground tracking-wide">
-            Campaign Editor
+            Dungeon Desk
           </h1>
         </div>
         <div className="flex items-center gap-2">
