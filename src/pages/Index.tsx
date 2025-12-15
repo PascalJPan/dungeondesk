@@ -787,15 +787,15 @@ ${entityExamples}`;
             variant="ghost"
             size="icon"
             className={cn(
-              "shrink-0 h-8 w-6 self-end mb-2 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20",
+              "shrink-0 h-10 w-8 self-end mb-2 rounded-none text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 z-20",
               !leftPanelOpen && "ml-1"
             )}
             onClick={() => setLeftPanelOpen(!leftPanelOpen)}
           >
             {leftPanelOpen ? (
-              <ChevronLeft className="w-3 h-3" />
+              <ChevronLeft className="w-5 h-5" />
             ) : (
-              <Settings className="w-3 h-3" />
+              <Settings className="w-5 h-5" />
             )}
           </Button>
         )}
@@ -853,15 +853,15 @@ ${entityExamples}`;
             variant="ghost"
             size="icon"
             className={cn(
-              "shrink-0 h-8 w-6 self-end mb-2 rounded-none text-muted-foreground/40 hover:text-foreground hover:bg-muted/50 z-20",
+              "shrink-0 h-10 w-8 self-end mb-2 rounded-none text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 z-20",
               !rightPanelOpen && "mr-1"
             )}
             onClick={() => setRightPanelOpen(!rightPanelOpen)}
           >
             {rightPanelOpen ? (
-              <ChevronRight className="w-3 h-3" />
+              <ChevronRight className="w-5 h-5" />
             ) : (
-              <BookOpenText className="w-3 h-3" />
+              <BookOpenText className="w-5 h-5" />
             )}
           </Button>
         )}
