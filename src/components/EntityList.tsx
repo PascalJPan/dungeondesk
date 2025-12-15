@@ -163,7 +163,7 @@ export function EntityList({ data, entityTypes, selectedEntityId, onSelectEntity
                           {entity.review === false ? (
                             <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                           ) : (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                            <CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground line-clamp-2 font-serif">

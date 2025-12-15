@@ -286,7 +286,7 @@ export function EntityPanel({
                 title={editedEntity.review ? 'Approved - click to mark for review' : 'Needs review - click to approve'}
               >
                 {editedEntity.review ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  <CheckCircle2 className="w-5 h-5 text-foreground" />
                 ) : (
                   <AlertCircle className="w-5 h-5 text-amber-500" />
                 )}
