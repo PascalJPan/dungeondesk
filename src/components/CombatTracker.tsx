@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sword, Shield, Heart, Footprints, Plus, Minus, RotateCcw, UserPlus, X, Dices, ChevronRight } from 'lucide-react';
+import { Sword, Shield, Heart, Footprints, Plus, Minus, RotateCcw, UserPlus, X, Dices, ChevronRight, Search } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,6 +51,7 @@ export function CombatTracker({
   setCurrentTurnId,
 }: CombatTrackerProps) {
   const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [addSearchQuery, setAddSearchQuery] = React.useState('');
 
   // Get combat-eligible entity types
   const combatEligibleTypes = entityTypes.filter(t => t.combatEligible).map(t => t.key);
@@ -129,14 +130,16 @@ export function CombatTracker({
     })));
   };
 
-  // Sort available entities by type then alphabetically
-  const sortedAvailableEntities = [...allCombatEntities].sort((a, b) => {
-    // First by type
-    const typeOrder = combatEligibleTypes.indexOf(a.type) - combatEligibleTypes.indexOf(b.type);
-    if (typeOrder !== 0) return typeOrder;
-    // Then alphabetically
-    return a.name.localeCompare(b.name);
-  });
+  // Sort available entities by type then alphabetically, filtered by search
+  const sortedAvailableEntities = [...allCombatEntities]
+    .filter(e => e.name.toLowerCase().includes(addSearchQuery.toLowerCase()))
+    .sort((a, b) => {
+      // First by type
+      const typeOrder = combatEligibleTypes.indexOf(a.type) - combatEligibleTypes.indexOf(b.type);
+      if (typeOrder !== 0) return typeOrder;
+      // Then alphabetically
+      return a.name.localeCompare(b.name);
+    });
 
   // Get count of instances for each entity
   const getInstanceCount = (entityId: string): number => {
@@ -187,7 +190,10 @@ export function CombatTracker({
           <span className="font-display text-lg">Combat</span>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+          <Dialog open={showAddDialog} onOpenChange={(open) => {
+            setShowAddDialog(open);
+            if (!open) setAddSearchQuery('');
+          }}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">
                 <UserPlus className="w-4 h-4 mr-1" />
@@ -198,7 +204,16 @@ export function CombatTracker({
               <DialogHeader>
                 <DialogTitle className="font-display">Add to Combat</DialogTitle>
               </DialogHeader>
-              <ScrollArea className="max-h-80">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search entities..."
+                  value={addSearchQuery}
+                  onChange={(e) => setAddSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <ScrollArea className="max-h-72">
                 <div className="space-y-2 pr-4">
                   {sortedAvailableEntities.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4 font-serif">
