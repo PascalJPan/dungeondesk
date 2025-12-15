@@ -707,7 +707,10 @@ export function InputPanel({
             <div className="space-y-1">
               <h2 className="text-lg font-display text-foreground">AI Extraction</h2>
               <p className="text-sm text-muted-foreground font-serif">
-                Upload PDF or paste text for AI extraction
+                Upload PDF or paste text for AI extraction using OpenAI.
+              </p>
+              <p className="text-xs text-muted-foreground/70 font-serif italic">
+                Alternatively, use the "Copy as Prompt" button in the Data tab to generate entities with any external AI (ChatGPT, Claude, etc.) and import the JSON result.
               </p>
             </div>
 
