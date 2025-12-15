@@ -5,7 +5,7 @@ import { EntityList } from '@/components/EntityList';
 import { EntityPanel } from '@/components/EntityPanel';
 import { NodeGraph } from '@/components/NodeGraph';
 import { TableView } from '@/components/TableView';
-import { CombatTracker } from '@/components/CombatTracker';
+import { CombatTracker, CombatInstance } from '@/components/CombatTracker';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
@@ -22,17 +22,10 @@ import {
   DEFAULT_PROMPT_SETTINGS,
   CampaignMetadata,
   DEFAULT_CAMPAIGN_METADATA,
-  CombatState,
 } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useCampaignStorage } from '@/hooks/use-campaign-storage';
-
-// Combat tracker state (lifted to persist across tab changes)
-interface CombatantState {
-  currentHP: number;
-  initiative: number;
-}
 
 // Table view state (lifted to persist across tab changes)
 interface PlacedCard {
@@ -65,8 +58,7 @@ export default function Index() {
     createdAt: new Date().toISOString(),
   });
   // Combat tracker state (persisted)
-  const [combatants, setCombatants] = useState<Record<string, CombatantState>>({});
-  const [activeCombatantIds, setActiveCombatantIds] = useState<Set<string>>(new Set());
+  const [combatInstances, setCombatInstances] = useState<CombatInstance[]>([]);
   const [combatRound, setCombatRound] = useState(1);
   const [currentTurnId, setCurrentTurnId] = useState<string | null>(null);
   
@@ -93,8 +85,7 @@ export default function Index() {
     if (loadedPromptSettings) setPromptSettings(loadedPromptSettings);
     if (loadedMetadata) setCampaignMetadata(loadedMetadata);
     if (loadedCombatState) {
-      setCombatants(loadedCombatState.combatants);
-      setActiveCombatantIds(new Set(loadedCombatState.activeCombatantIds));
+      setCombatInstances(loadedCombatState.combatInstances || []);
       setCombatRound(loadedCombatState.round);
       setCurrentTurnId(loadedCombatState.currentTurnId);
     }
@@ -127,12 +118,11 @@ export default function Index() {
   useEffect(() => {
     if (!isInitialized) return;
     storage.saveCombatState({
-      combatants,
-      activeCombatantIds: Array.from(activeCombatantIds),
+      combatInstances,
       round: combatRound,
       currentTurnId,
     });
-  }, [combatants, activeCombatantIds, combatRound, currentTurnId, isInitialized]);
+  }, [combatInstances, combatRound, currentTurnId, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -478,8 +468,7 @@ Rules:
 
     // Import combat state if present (always restore combat state from import)
     if (data.combatState) {
-      setCombatants(data.combatState.combatants);
-      setActiveCombatantIds(new Set(data.combatState.activeCombatantIds));
+      setCombatInstances(data.combatState.combatInstances || []);
       setCombatRound(data.combatState.round);
       setCurrentTurnId(data.combatState.currentTurnId);
     }
@@ -495,9 +484,8 @@ Rules:
   }, [campaignData, entityTypes, mergeEntities, cleanAndSyncAssociations, fixDuplicateIds]);
 
   const handleExport = useCallback(() => {
-    const combatState: CombatState = {
-      combatants,
-      activeCombatantIds: Array.from(activeCombatantIds),
+    const combatState = {
+      combatInstances,
       round: combatRound,
       currentTurnId,
     };
@@ -570,7 +558,7 @@ ${entityExamples}`;
       title: "Campaign exported",
       description: "JSON file downloaded",
     });
-  }, [campaignData, entityTypes, promptSettings, campaignMetadata, combatants, activeCombatantIds, combatRound, currentTurnId]);
+  }, [campaignData, entityTypes, promptSettings, campaignMetadata, combatInstances, combatRound, currentTurnId]);
 
   const handleEntitySelect = useCallback((entity: CampaignEntity | null) => {
     setSelectedEntity(entity);
@@ -693,20 +681,15 @@ ${entityExamples}`;
       return { ...prev, entities: newEntities };
     });
     
-    // Clean up combat state for deleted entity
-    setCombatants(prev => {
-      const newCombatants = { ...prev };
-      delete newCombatants[entityId];
-      return newCombatants;
+    // Clean up combat state for deleted entity - remove all instances of this entity
+    setCombatInstances(prev => prev.filter(inst => inst.entityId !== entityId));
+    // Reset current turn if it was an instance of this entity
+    setCurrentTurnId(prev => {
+      if (prev && (prev === entityId || prev.startsWith(`${entityId}#`))) {
+        return null;
+      }
+      return prev;
     });
-    setActiveCombatantIds(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(entityId);
-      return newSet;
-    });
-    if (currentTurnId === entityId) {
-      setCurrentTurnId(null);
-    }
     
     // Clean up table view placed cards
     setPlacedCards(prev => prev.filter(card => card.entityId !== entityId));
@@ -731,20 +714,17 @@ ${entityExamples}`;
       return { ...prev, entities: newEntities };
     });
     
-    // Clean up combat state
-    setCombatants(prev => {
-      const newCombatants = { ...prev };
-      selectedEntityIds.forEach(id => delete newCombatants[id]);
-      return newCombatants;
+    // Clean up combat state - remove all instances of deleted entities
+    setCombatInstances(prev => prev.filter(inst => !selectedEntityIds.has(inst.entityId)));
+    setCurrentTurnId(prev => {
+      if (prev) {
+        const entityIdFromInstance = prev.includes('#') ? prev.split('#')[0] : prev;
+        if (selectedEntityIds.has(entityIdFromInstance)) {
+          return null;
+        }
+      }
+      return prev;
     });
-    setActiveCombatantIds(prev => {
-      const newSet = new Set(prev);
-      selectedEntityIds.forEach(id => newSet.delete(id));
-      return newSet;
-    });
-    if (currentTurnId && selectedEntityIds.has(currentTurnId)) {
-      setCurrentTurnId(null);
-    }
     
     // Clean up table view
     setPlacedCards(prev => prev.filter(card => !selectedEntityIds.has(card.entityId)));
@@ -761,8 +741,7 @@ ${entityExamples}`;
     setCampaignData(null);
     setSelectedEntity(null);
     setSelectedEntityIds(new Set());
-    setCombatants({});
-    setActiveCombatantIds(new Set());
+    setCombatInstances([]);
     setCombatRound(1);
     setCurrentTurnId(null);
     setPlacedCards([]);
@@ -1016,10 +995,8 @@ ${entityExamples}`;
               entityTypes={entityTypes}
               onEntitySelect={handleEntitySelect}
               selectedEntityId={selectedEntity?.id || null}
-              combatants={combatants}
-              setCombatants={setCombatants}
-              activeCombatantIds={activeCombatantIds}
-              setActiveCombatantIds={setActiveCombatantIds}
+              combatInstances={combatInstances}
+              setCombatInstances={setCombatInstances}
               round={combatRound}
               setRound={setCombatRound}
               currentTurnId={currentTurnId}

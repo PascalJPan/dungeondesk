@@ -22,6 +22,7 @@ export interface EntityTypeDef {
   color: string;
   attributes: AttributeDef[];
   extractionPrompt?: string; // AI extraction guidance
+  combatEligible?: boolean; // Whether entities of this type can be added to combat
 }
 
 // Attribute definition
@@ -65,6 +66,7 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
     key: 'character',
     label: 'Characters',
     color: '#6b7fa3',
+    combatEligible: true,
     attributes: [
       { key: 'shortDescription', label: 'Short Description' },
       { key: 'longDescription', label: 'Detailed Description' },
@@ -85,6 +87,7 @@ export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
     key: 'monster',
     label: 'Monsters',
     color: '#a35d5d',
+    combatEligible: true,
     attributes: [
       { key: 'shortDescription', label: 'Short Description' },
       { key: 'longDescription', label: 'Detailed Description' },
@@ -188,10 +191,18 @@ export const DEFAULT_CAMPAIGN_METADATA: CampaignMetadata = {
   createdAt: new Date().toISOString(),
 };
 
+// Combat instance for export (matches CombatTracker interface)
+export interface CombatInstanceExport {
+  instanceId: string;
+  entityId: string;
+  instanceNumber: number;
+  currentHP: number;
+  initiative: number;
+}
+
 // Combat state for export
 export interface CombatState {
-  combatants: Record<string, { currentHP: number; initiative: number }>;
-  activeCombatantIds: string[];
+  combatInstances: CombatInstanceExport[];
   round: number;
   currentTurnId: string | null;
 }
