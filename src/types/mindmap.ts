@@ -123,6 +123,7 @@ export interface CampaignEntity {
   id: string;
   type: string;
   name: string;
+  review?: boolean; // false = needs review, true = approved
   [key: string]: any; // Dynamic attributes
 }
 
@@ -155,7 +156,9 @@ export const DEFAULT_SYSTEM_PROMPT = `STRICT RULES:
 - Do NOT add unlisted fields (no "tags", "stats", "level", "class", etc.)
 - For associated entities: use comma-separated names (e.g., "Aragorn, Legolas, Gimli")
 - For attacks: use format "Name: +modifier | damage [type]" per line (e.g., "Longsword: +4 | 1d8+5 slashing\\nFirecast: +5 | 50% Burning")
-- IDs must use "type-N" format (e.g., character-1, location-2)`;
+- For speed: default is "9" (always in meters as a string)
+- IDs must use "type-N" format (e.g., character-1, location-2)
+- Every new/imported entity must have "review": false (needs review)`;
 
 export const DEFAULT_PROMPT_SETTINGS: PromptSettings = {
   contentLanguage: 'English',
@@ -244,7 +247,7 @@ export function getEmptyFields(data: CampaignData, entityTypes: EntityTypeDef[])
 
 // Helper to create empty entity
 export function createEmptyEntity(typeDef: EntityTypeDef, id: string, name: string): CampaignEntity {
-  const entity: CampaignEntity = { id, type: typeDef.key, name };
+  const entity: CampaignEntity = { id, type: typeDef.key, name, review: false };
   
   for (const attr of typeDef.attributes) {
     entity[attr.key] = '';

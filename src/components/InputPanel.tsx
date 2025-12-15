@@ -22,7 +22,7 @@ interface MergeDialogData {
 }
 
 interface InputPanelProps {
-  onProcess: (text: string, extractionOptions: ExtractionOptions, keepExisting: boolean, openAiApiKey: string) => void;
+  onProcess: (text: string, extractionOptions: ExtractionOptions, keepExisting: boolean, openAiApiKey: string, maxEntities: number) => void;
   onImport: (data: CampaignExport, keepEntities: boolean, keepMetadata: boolean, mergeTypes: boolean) => void;
   onExport: () => void;
   processingState: ProcessingState;
@@ -101,6 +101,7 @@ export function InputPanel({
   const [pendingImport, setPendingImport] = useState<CampaignExport | null>(null);
   const [mergeDialog, setMergeDialog] = useState<MergeDialogData | null>(null);
   const [openAiApiKey, setOpenAiApiKey] = useState('');
+  const [maxExtractedEntities, setMaxExtractedEntities] = useState(1);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
@@ -322,7 +323,7 @@ export function InputPanel({
       promptSettings: promptSettings,
     };
     
-    onProcess(inputText, extractionOptions, keepExistingEntities, openAiApiKey);
+    onProcess(inputText, extractionOptions, keepExistingEntities, openAiApiKey, maxExtractedEntities);
   };
 
   // Detect new entity types and attributes
@@ -423,7 +424,7 @@ export function InputPanel({
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-3 py-3 font-serif text-xs"
           >
             <FileJson className="w-4 h-4 mr-1" />
-            JSON
+            Data
           </TabsTrigger>
           <TabsTrigger 
             value="questions"
@@ -813,6 +814,25 @@ export function InputPanel({
               </div>
             </div>
 
+            {/* Max Entities Slider */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                Max Entities to Extract: {maxExtractedEntities}
+              </Label>
+              <Slider
+                value={[maxExtractedEntities]}
+                onValueChange={(value) => setMaxExtractedEntities(value[0])}
+                min={1}
+                max={50}
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground font-serif">
+                <span>1</span>
+                <span>50</span>
+              </div>
+            </div>
+
             {/* Generate Button */}
             <Button
               onClick={handleGenerate}
@@ -835,61 +855,64 @@ export function InputPanel({
           </div>
         </TabsContent>
 
-        {/* JSON Tab */}
+        {/* Data Tab (JSON Import/Export) */}
         <TabsContent value="json" className="flex-1 m-0 overflow-y-auto scrollbar-thin">
           <div className="p-4 space-y-4 ink-texture">
-            {/* Header */}
-            <div className="space-y-1">
-              <h2 className="text-lg font-display text-foreground">JSON Import/Export</h2>
-              <p className="text-sm text-muted-foreground font-serif">
-                Import or export campaign data as JSON
-              </p>
-            </div>
+            {/* Export Section */}
+            <div className="space-y-3 pb-4 border-b border-border">
+              <div className="space-y-1">
+                <h2 className="text-lg font-display text-foreground">Export</h2>
+                <p className="text-sm text-muted-foreground font-serif">
+                  Download or copy your campaign data
+                </p>
+              </div>
 
-            {/* Export & Copy Buttons */}
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                className="flex-1 font-serif"
-                onClick={onExport}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export JSON
-              </Button>
-              <Button 
-                variant="outline" 
-                className="flex-1 font-serif"
-                onClick={() => {
-                  // Generate the same export data inline for copy
-                  const exportData: CampaignExport = {
-                    version: '1.0',
-                    exportedAt: new Date().toISOString(),
-                    metadata: campaignMetadata,
-                    entityTypes: entityTypes,
-                    entities: campaignData?.entities || [],
-                    promptSettings: promptSettings,
-                  };
-                  
-                  // Generate chatGptPrompt inline
-                  const entityExamples = entityTypes.map(t => {
-                    const exampleAttrs: Record<string, string> = {
-                      id: `${t.key}-1`,
-                      type: t.key,
-                      name: `Example ${t.label}`,
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 font-serif"
+                  onClick={onExport}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export JSON
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-1 font-serif"
+                  onClick={() => {
+                    // Generate the same export data inline for copy
+                    const exportData: CampaignExport = {
+                      version: '1.0',
+                      exportedAt: new Date().toISOString(),
+                      metadata: campaignMetadata,
+                      entityTypes: entityTypes,
+                      entities: campaignData?.entities || [],
+                      promptSettings: promptSettings,
                     };
-                    t.attributes.forEach(attr => {
-                      if (attr.key === 'attacks') {
-                        exampleAttrs[attr.key] = 'Longsword: +4 | 1d8+5 slashing\nDagger: +2 | 1d4+3 piercing\nFirecast: +5 | 50% Burning';
-                      } else if (attr.key === 'associatedEntities') {
-                        exampleAttrs[attr.key] = 'Aragorn, Legolas, Gimli';
-                      } else {
-                        exampleAttrs[attr.key] = `[${attr.label} here]`;
-                      }
-                    });
-                    return JSON.stringify(exampleAttrs, null, 2);
-                  }).join('\n\n');
+                    
+                    // Generate chatGptPrompt inline
+                    const entityExamples = entityTypes.map(t => {
+                      const exampleAttrs: Record<string, string> = {
+                        id: `${t.key}-1`,
+                        type: t.key,
+                        name: `Example ${t.label}`,
+                        review: 'false',
+                      };
+                      t.attributes.forEach(attr => {
+                        if (attr.key === 'attacks') {
+                          exampleAttrs[attr.key] = 'Longsword: +4 | 1d8+5 slashing\nDagger: +2 | 1d4+3 piercing\nFirecast: +5 | 50% Burning';
+                        } else if (attr.key === 'associatedEntities') {
+                          exampleAttrs[attr.key] = 'Aragorn, Legolas, Gimli';
+                        } else if (attr.key === 'speed') {
+                          exampleAttrs[attr.key] = '9';
+                        } else {
+                          exampleAttrs[attr.key] = `[${attr.label} here]`;
+                        }
+                      });
+                      return JSON.stringify(exampleAttrs, null, 2);
+                    }).join('\n\n');
 
-                  exportData.chatGptPrompt = `## ChatGPT Instructions for Dungeon Desk JSON
+                    exportData.chatGptPrompt = `## ChatGPT Instructions for Dungeon Desk JSON
 
 ${promptSettings.systemPrompt}
 
@@ -908,26 +931,38 @@ Then paste into JSON field and Import with "Keep existing entities" checked.
 - Infer Missing: ${promptSettings.inferLevel <= 2 ? 'Rarely' : promptSettings.inferLevel >= 4 ? 'Often' : 'Sometimes'}
 
 ### Entity Types & Attributes
-${entityTypes.map(t => `**${t.label}** (type: "${t.key}")\nAttributes: ${t.attributes.map(a => `${a.key}`).join(', ')}`).join('\n\n')}
+${entityTypes.map(t => `**${t.label}** (type: "${t.key}")\nAttributes: ${t.attributes.map(a => `${a.key}`).join(', ')}, review`).join('\n\n')}
 
 ### Example Entities (follow this structure EXACTLY)
 ${entityExamples}`;
 
-                  navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
-                  toast({
-                    title: "JSON copied",
-                    description: "Campaign JSON copied to clipboard",
-                  });
-                }}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copy JSON
-              </Button>
+                    navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
+                    toast({
+                      title: "JSON copied",
+                      description: "Full campaign JSON with AI prompt copied - paste directly to ChatGPT",
+                    });
+                  }}
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy as Prompt
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground font-serif italic">
+                "Copy as Prompt" includes AI instructions - paste directly into ChatGPT to generate new entities
+              </p>
             </div>
 
-            {/* JSON File Upload */}
-            <div
-              className={cn(
+            {/* Import Section */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <h2 className="text-lg font-display text-foreground">Import</h2>
+                <p className="text-sm text-muted-foreground font-serif">
+                  Load campaign data from JSON
+                </p>
+              </div>
+
+              <div
+                className={cn(
                 "border-2 border-dashed rounded-lg p-4 text-center transition-colors",
                 isDragging ? "border-primary bg-primary/5" : "border-border"
               )}
@@ -1014,7 +1049,8 @@ ${entityExamples}`;
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Clear All Entities
-            </Button>
+              </Button>
+            </div>
           </div>
         </TabsContent>
 
