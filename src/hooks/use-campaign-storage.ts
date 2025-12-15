@@ -9,7 +9,14 @@ const STORAGE_KEYS = {
   campaignMetadata: 'dungeondesk-campaign-metadata',
   combatState: 'dungeondesk-combat-state',
   placedCards: 'dungeondesk-placed-cards',
+  extractSettings: 'dungeondesk-extract-settings',
 } as const;
+
+export interface ExtractSettings {
+  openAiApiKey: string;
+  inputText: string;
+  maxExtractedEntities: number;
+}
 
 interface PlacedCard {
   entityId: string;
@@ -85,6 +92,16 @@ export function useCampaignStorage() {
     }
   }, []);
 
+  const loadExtractSettings = useCallback((): ExtractSettings | null => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.extractSettings);
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.error('Failed to load extract settings:', e);
+      return null;
+    }
+  }, []);
+
   // Save functions
   const saveCampaignData = useCallback((data: CampaignData | null) => {
     try {
@@ -138,6 +155,14 @@ export function useCampaignStorage() {
     }
   }, []);
 
+  const saveExtractSettings = useCallback((settings: ExtractSettings) => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.extractSettings, JSON.stringify(settings));
+    } catch (e) {
+      console.error('Failed to save extract settings:', e);
+    }
+  }, []);
+
   return {
     loadCampaignData,
     loadEntityTypes,
@@ -145,11 +170,13 @@ export function useCampaignStorage() {
     loadCampaignMetadata,
     loadCombatState,
     loadPlacedCards,
+    loadExtractSettings,
     saveCampaignData,
     saveEntityTypes,
     savePromptSettings,
     saveCampaignMetadata,
     saveCombatState,
     savePlacedCards,
+    saveExtractSettings,
   };
 }

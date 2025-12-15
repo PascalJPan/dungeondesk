@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle, FileJson, Copy, HelpCircle, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +15,7 @@ import { Slider } from '@/components/ui/slider';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { useCampaignStorage } from '@/hooks/use-campaign-storage';
 
 
 interface MergeDialogData {
@@ -102,6 +103,8 @@ export function InputPanel({
   onCampaignMetadataChange,
   onClearAllEntities,
 }: InputPanelProps) {
+  const { loadExtractSettings, saveExtractSettings } = useCampaignStorage();
+  
   const [inputText, setInputText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -115,6 +118,25 @@ export function InputPanel({
   const [mergeDialog, setMergeDialog] = useState<MergeDialogData | null>(null);
   const [openAiApiKey, setOpenAiApiKey] = useState('');
   const [maxExtractedEntities, setMaxExtractedEntities] = useState(1);
+
+  // Load persisted extract settings on mount
+  useEffect(() => {
+    const saved = loadExtractSettings();
+    if (saved) {
+      setOpenAiApiKey(saved.openAiApiKey || '');
+      setInputText(saved.inputText || '');
+      setMaxExtractedEntities(saved.maxExtractedEntities || 1);
+    }
+  }, [loadExtractSettings]);
+
+  // Save extract settings when they change
+  useEffect(() => {
+    saveExtractSettings({
+      openAiApiKey,
+      inputText,
+      maxExtractedEntities,
+    });
+  }, [openAiApiKey, inputText, maxExtractedEntities, saveExtractSettings]);
 
   const isProcessing = processingState.status !== 'idle' && processingState.status !== 'complete' && processingState.status !== 'error';
 
