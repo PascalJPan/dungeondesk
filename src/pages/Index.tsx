@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { BookOpen, ChevronLeft, ChevronRight, List, Sword, Network, Grid3X3, Settings, BookOpenText } from 'lucide-react';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
@@ -7,6 +7,7 @@ import { NodeGraph } from '@/components/NodeGraph';
 import { TableView } from '@/components/TableView';
 import { CombatTracker } from '@/components/CombatTracker';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   CampaignData, 
   CampaignEntity, 
@@ -14,6 +15,7 @@ import {
   ExtractionOptions,
   EntityTypeDef,
   createEmptyEntity,
+  duplicateEntity,
   CampaignExport,
   DEFAULT_ENTITY_TYPES,
   PromptSettings,
@@ -24,6 +26,7 @@ import {
 } from '@/types/mindmap';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { useCampaignStorage } from '@/hooks/use-campaign-storage';
 
 // Combat tracker state (lifted to persist across tab changes)
 interface CombatantState {
@@ -42,6 +45,10 @@ export default function Index() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'combat' | 'nodes' | 'table'>('list');
+  const [selectedEntityIds, setSelectedEntityIds] = useState<Set<string>>(new Set());
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  const storage = useCampaignStorage();
 
   // Auto-close left panel when switching views
   const handleViewChange = useCallback((newView: 'list' | 'combat' | 'nodes' | 'table') => {
@@ -71,6 +78,80 @@ export default function Index() {
     progress: 0,
     message: '',
   });
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const loadedCampaignData = storage.loadCampaignData();
+    const loadedEntityTypes = storage.loadEntityTypes();
+    const loadedPromptSettings = storage.loadPromptSettings();
+    const loadedMetadata = storage.loadCampaignMetadata();
+    const loadedCombatState = storage.loadCombatState();
+    const loadedPlacedCards = storage.loadPlacedCards();
+
+    if (loadedCampaignData) setCampaignData(loadedCampaignData);
+    if (loadedEntityTypes) setEntityTypes(loadedEntityTypes);
+    if (loadedPromptSettings) setPromptSettings(loadedPromptSettings);
+    if (loadedMetadata) setCampaignMetadata(loadedMetadata);
+    if (loadedCombatState) {
+      setCombatants(loadedCombatState.combatants);
+      setActiveCombatantIds(new Set(loadedCombatState.activeCombatantIds));
+      setCombatRound(loadedCombatState.round);
+      setCurrentTurnId(loadedCombatState.currentTurnId);
+    }
+    if (loadedPlacedCards) setPlacedCards(loadedPlacedCards);
+
+    setIsInitialized(true);
+  }, []);
+
+  // Save to localStorage when data changes
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.saveCampaignData(campaignData);
+  }, [campaignData, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.saveEntityTypes(entityTypes);
+  }, [entityTypes, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.savePromptSettings(promptSettings);
+  }, [promptSettings, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.saveCampaignMetadata(campaignMetadata);
+  }, [campaignMetadata, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.saveCombatState({
+      combatants,
+      activeCombatantIds: Array.from(activeCombatantIds),
+      round: combatRound,
+      currentTurnId,
+    });
+  }, [combatants, activeCombatantIds, combatRound, currentTurnId, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    storage.savePlacedCards(placedCards);
+  }, [placedCards, isInitialized]);
+
+  // Beforeunload warning
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (campaignData && campaignData.entities.length > 0) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved campaign data. Consider exporting to JSON before leaving.';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [campaignData]);
 
   // Helper to merge entities
   const mergeEntities = useCallback((
@@ -493,10 +574,25 @@ ${entityExamples}`;
 
   const handleEntitySelect = useCallback((entity: CampaignEntity | null) => {
     setSelectedEntity(entity);
+    setSelectedEntityIds(new Set()); // Clear multi-select when single selecting
     if (entity) {
       if (!rightPanelOpen) setRightPanelOpen(true);
     }
   }, [rightPanelOpen]);
+
+  const handleMultiSelectEntity = useCallback((entityId: string, isCtrlKey: boolean) => {
+    if (isCtrlKey) {
+      setSelectedEntityIds(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(entityId)) {
+          newSet.delete(entityId);
+        } else {
+          newSet.add(entityId);
+        }
+        return newSet;
+      });
+    }
+  }, []);
 
   const handleEntitySave = useCallback((updatedEntity: CampaignEntity) => {
     setCampaignData(prev => {
@@ -596,15 +692,80 @@ ${entityExamples}`;
       
       return { ...prev, entities: newEntities };
     });
+    
+    // Clean up combat state for deleted entity
+    setCombatants(prev => {
+      const newCombatants = { ...prev };
+      delete newCombatants[entityId];
+      return newCombatants;
+    });
+    setActiveCombatantIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(entityId);
+      return newSet;
+    });
+    if (currentTurnId === entityId) {
+      setCurrentTurnId(null);
+    }
+    
+    // Clean up table view placed cards
+    setPlacedCards(prev => prev.filter(card => card.entityId !== entityId));
+    
     setSelectedEntity(null);
+    setSelectedEntityIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(entityId);
+      return newSet;
+    });
     toast({
       title: "Entity deleted",
     });
-  }, []);
+  }, [currentTurnId]);
+
+  const handleBulkDelete = useCallback(() => {
+    if (selectedEntityIds.size === 0) return;
+    
+    setCampaignData(prev => {
+      if (!prev) return prev;
+      const newEntities = prev.entities.filter(e => !selectedEntityIds.has(e.id));
+      return { ...prev, entities: newEntities };
+    });
+    
+    // Clean up combat state
+    setCombatants(prev => {
+      const newCombatants = { ...prev };
+      selectedEntityIds.forEach(id => delete newCombatants[id]);
+      return newCombatants;
+    });
+    setActiveCombatantIds(prev => {
+      const newSet = new Set(prev);
+      selectedEntityIds.forEach(id => newSet.delete(id));
+      return newSet;
+    });
+    if (currentTurnId && selectedEntityIds.has(currentTurnId)) {
+      setCurrentTurnId(null);
+    }
+    
+    // Clean up table view
+    setPlacedCards(prev => prev.filter(card => !selectedEntityIds.has(card.entityId)));
+    
+    toast({
+      title: `${selectedEntityIds.size} entities deleted`,
+    });
+    
+    setSelectedEntity(null);
+    setSelectedEntityIds(new Set());
+  }, [selectedEntityIds, currentTurnId]);
 
   const handleClearAllEntities = useCallback(() => {
     setCampaignData(null);
     setSelectedEntity(null);
+    setSelectedEntityIds(new Set());
+    setCombatants({});
+    setActiveCombatantIds(new Set());
+    setCombatRound(1);
+    setCurrentTurnId(null);
+    setPlacedCards([]);
     toast({
       title: "All entities cleared",
     });
@@ -624,6 +785,24 @@ ${entityExamples}`;
     setSelectedEntity(newEntity);
     if (!rightPanelOpen) setRightPanelOpen(true);
   }, [rightPanelOpen]);
+
+  const handleDuplicateEntity = useCallback((entity: CampaignEntity) => {
+    const id = `${entity.type}-${Date.now()}`;
+    const newEntity = duplicateEntity(entity, id);
+    
+    setCampaignData(prev => {
+      if (!prev) {
+        return { entities: [newEntity], processingTime: 0 };
+      }
+      return { ...prev, entities: [...prev.entities, newEntity] };
+    });
+    
+    setSelectedEntity(newEntity);
+    toast({
+      title: "Entity duplicated",
+      description: `Created "${newEntity.name}"`,
+    });
+  }, []);
 
   const handleConnectionCreate = useCallback((sourceEntityId: string, targetEntityId: string) => {
     setCampaignData(prev => {
@@ -712,6 +891,16 @@ ${entityExamples}`;
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          {selectedEntityIds.size > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleBulkDelete}
+              className="font-serif"
+            >
+              Delete {selectedEntityIds.size} selected
+            </Button>
+          )}
           <Button
             variant={viewMode === 'list' ? 'secondary' : 'ghost'}
             size="sm"
@@ -783,21 +972,30 @@ ${entityExamples}`;
 
         {/* Left Panel Toggle - hidden when both panels open */}
         {!(leftPanelOpen && rightPanelOpen) && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "shrink-0 h-10 w-8 self-end mb-2 rounded-none text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 z-20",
-              !leftPanelOpen && "ml-1"
-            )}
-            onClick={() => setLeftPanelOpen(!leftPanelOpen)}
-          >
-            {leftPanelOpen ? (
-              <ChevronLeft className="w-5 h-5" />
-            ) : (
-              <Settings className="w-5 h-5" />
-            )}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "shrink-0 h-10 w-8 self-end mb-2 rounded-none text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 z-20",
+                    !leftPanelOpen && "ml-1"
+                  )}
+                  onClick={() => setLeftPanelOpen(!leftPanelOpen)}
+                >
+                  {leftPanelOpen ? (
+                    <ChevronLeft className="w-5 h-5" />
+                  ) : (
+                    <Settings className="w-5 h-5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>{leftPanelOpen ? 'Close settings panel' : 'Open settings, extraction & data import/export'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
 
         {/* Main Area */}
@@ -807,7 +1005,9 @@ ${entityExamples}`;
               data={campaignData}
               entityTypes={entityTypes}
               selectedEntityId={selectedEntity?.id || null}
+              selectedEntityIds={selectedEntityIds}
               onSelectEntity={handleEntitySelect}
+              onMultiSelectEntity={handleMultiSelectEntity}
               onAddEntity={handleAddEntity}
             />
           ) : viewMode === 'combat' ? (
@@ -849,21 +1049,30 @@ ${entityExamples}`;
 
         {/* Right Panel Toggle - hidden when both panels open */}
         {!(leftPanelOpen && rightPanelOpen) && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "shrink-0 h-10 w-8 self-end mb-2 rounded-none text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 z-20",
-              !rightPanelOpen && "mr-1"
-            )}
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-          >
-            {rightPanelOpen ? (
-              <ChevronRight className="w-5 h-5" />
-            ) : (
-              <BookOpenText className="w-5 h-5" />
-            )}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "shrink-0 h-10 w-8 self-end mb-2 rounded-none text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 z-20",
+                    !rightPanelOpen && "mr-1"
+                  )}
+                  onClick={() => setRightPanelOpen(!rightPanelOpen)}
+                >
+                  {rightPanelOpen ? (
+                    <ChevronRight className="w-5 h-5" />
+                  ) : (
+                    <BookOpenText className="w-5 h-5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>{rightPanelOpen ? 'Close entity details' : 'Open entity details panel'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
 
         {/* Right Panel - Entity Details */}
@@ -881,6 +1090,7 @@ ${entityExamples}`;
               onSave={handleEntitySave}
               onDelete={handleEntityDelete}
               onEntityClick={handleEntitySelect}
+              onDuplicate={handleDuplicateEntity}
             />
           )}
         </aside>

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle, FileJson, Copy, HelpCircle } from 'lucide-react';
+import { Upload, FileText, Type, Loader2, Plus, X, Download, Settings, ChevronDown, Trash2, AlertTriangle, FileJson, Copy, HelpCircle, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS, CampaignData, CampaignMetadata, DEFAULT_SYSTEM_PROMPT } from '@/types/mindmap';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ProcessingState, ExtractionOptions, EntityTypeDef, AttributeDef, CampaignExport, COLOR_PALETTE, DEFAULT_ENTITY_TYPES, CampaignEntity, PromptSettings, DEFAULT_PROMPT_SETTINGS, INFER_LEVEL_LABELS, CampaignData, CampaignMetadata, DEFAULT_SYSTEM_PROMPT, getEntityLabel } from '@/types/mindmap';
 import { Slider } from '@/components/ui/slider';
 import { QuestionsPanel } from '@/components/QuestionsPanel';
 import { cn } from '@/lib/utils';
@@ -47,29 +48,41 @@ interface DeleteWarning {
   onConfirm: () => void;
 }
 
-// Generate ChatGPT prompt for JSON export
-export function generateChatGptPromptForJson(entityTypes: EntityTypeDef[], promptSettings: PromptSettings): string {
-  return `## ChatGPT Instructions for Campaign JSON
-
-### Mode 1: Update Existing Entities
-Modify entities while preserving: all IDs, structure, metadata, entityTypes, promptSettings.
-Output the complete JSON with your changes.
-
-### Mode 2: Create New Entities
-Output ONLY this structure for merging:
-{"version":"1.0","entities":[{"id":"type-N","type":"...","name":"...",...}]}
-Then paste into JSON field and Import.
-
-### Settings
-- Language: ${promptSettings.contentLanguage}
-- Tone: ${promptSettings.tone}
-- Infer Missing: ${INFER_LEVEL_LABELS[promptSettings.inferLevel]}
-
-### Entity Types
-${entityTypes.map(t => `- ${t.label} (${t.key}): ${t.attributes.map(a => a.label).join(', ')}`).join('\n')}
-
-### ID Format
-Use "type-N" format (e.g., character-1, location-2). Increment numbers for new entities.`;
+// Generate Markdown export for entities
+function generateMarkdownExport(entities: CampaignEntity[], entityTypes: EntityTypeDef[], metadata: CampaignMetadata, specificEntityId?: string): string {
+  const entitiesToExport = specificEntityId 
+    ? entities.filter(e => e.id === specificEntityId)
+    : entities;
+  
+  let md = `# ${metadata.name}\n\n`;
+  md += `*Exported: ${new Date().toLocaleDateString()}*\n\n---\n\n`;
+  
+  // Group by type
+  const grouped: Record<string, CampaignEntity[]> = {};
+  entitiesToExport.forEach(e => {
+    if (!grouped[e.type]) grouped[e.type] = [];
+    grouped[e.type].push(e);
+  });
+  
+  Object.entries(grouped).forEach(([type, typeEntities]) => {
+    const typeDef = entityTypes.find(t => t.key === type);
+    md += `## ${typeDef?.label || type}\n\n`;
+    
+    typeEntities.forEach(entity => {
+      md += `### ${entity.name}\n\n`;
+      
+      typeDef?.attributes.forEach(attr => {
+        const value = entity[attr.key];
+        if (value && String(value).trim()) {
+          md += `**${attr.label}:** ${String(value).trim()}\n\n`;
+        }
+      });
+      
+      md += `---\n\n`;
+    });
+  });
+  
+  return md;
 }
 
 export function InputPanel({ 

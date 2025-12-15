@@ -30,12 +30,7 @@ export interface AttributeDef {
   label: string;
 }
 
-// Attack definition for combat entities
-export interface Attack {
-  name: string;
-  toHit: string;
-  damage: string;
-}
+// Attack definition for combat entities (currently stored as string format in entities)
 
 // Default entity type definitions
 export const DEFAULT_ENTITY_TYPES: EntityTypeDef[] = [
@@ -254,10 +249,17 @@ export function createEmptyEntity(typeDef: EntityTypeDef, id: string, name: stri
     entity[attr.key] = '';
   }
   
-  // Add relation arrays for all other entity types
-  entity.relations = [];
-  
   return entity;
+}
+
+// Helper to duplicate an entity with a new ID
+export function duplicateEntity(entity: CampaignEntity, newId: string): CampaignEntity {
+  return {
+    ...entity,
+    id: newId,
+    name: `${entity.name} (Copy)`,
+    review: false,
+  };
 }
 
 // Helper to get color for entity type
