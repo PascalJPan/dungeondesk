@@ -966,6 +966,76 @@ ${entityExamples}`;
               <p className="text-xs text-muted-foreground font-serif italic">
                 "Copy as Prompt" includes AI instructions - paste directly into ChatGPT to generate new entities
               </p>
+
+              {/* Markdown Export */}
+              <div className="pt-3 border-t border-border/50 space-y-2">
+                <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                  Export as Markdown
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 font-serif"
+                    disabled={!campaignData || campaignData.entities.length === 0}
+                    onClick={() => {
+                      const md = generateMarkdownExport(
+                        campaignData?.entities || [],
+                        entityTypes,
+                        campaignMetadata
+                      );
+                      const blob = new Blob([md], { type: 'text/markdown' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      const safeName = campaignMetadata.name.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'campaign';
+                      a.download = `${safeName}.md`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast({ title: "Markdown exported" });
+                    }}
+                  >
+                    <FileDown className="w-4 h-4 mr-2" />
+                    All Entities
+                  </Button>
+                  <Select
+                    disabled={!campaignData || campaignData.entities.length === 0}
+                    onValueChange={(entityId) => {
+                      const entity = campaignData?.entities.find(e => e.id === entityId);
+                      if (!entity) return;
+                      const md = generateMarkdownExport(
+                        campaignData?.entities || [],
+                        entityTypes,
+                        campaignMetadata,
+                        entityId
+                      );
+                      const blob = new Blob([md], { type: 'text/markdown' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      const safeName = entity.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+                      a.download = `${safeName}.md`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast({ title: `Exported ${entity.name}` });
+                    }}
+                  >
+                    <SelectTrigger className="flex-1 h-9 text-sm font-serif">
+                      <SelectValue placeholder="Single entity..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover max-h-60">
+                      {(campaignData?.entities || []).map(entity => (
+                        <SelectItem key={entity.id} value={entity.id} className="font-serif">
+                          {entity.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground font-serif italic">
+                  Markdown format for printing or sharing campaign notes
+                </p>
+              </div>
             </div>
 
             {/* Import Section */}
