@@ -141,6 +141,45 @@ export function InputPanel({
     setOpenEntityTypes(prev => [...prev, newType.key]);
   };
 
+  const handleCopyEntityType = (typeToCopy: EntityTypeDef) => {
+    const usedColors = entityTypes.map(t => t.color);
+    const availableColor = COLOR_PALETTE.find(c => !usedColors.includes(c)) || COLOR_PALETTE[entityTypes.length % COLOR_PALETTE.length];
+    
+    const newType: EntityTypeDef = {
+      key: `${typeToCopy.key}_copy_${Date.now()}`,
+      label: `${typeToCopy.label} (Copy)`,
+      color: availableColor,
+      attributes: typeToCopy.attributes.map(attr => ({ ...attr })),
+      extractionPrompt: typeToCopy.extractionPrompt,
+      combatEligible: typeToCopy.combatEligible,
+    };
+    onEntityTypesChange([...entityTypes, newType]);
+    setOpenEntityTypes(prev => [...prev, newType.key]);
+  };
+
+  const handleResetAllSettings = () => {
+    // Get types that are currently in use
+    const typesInUse = new Set(existingEntities.map(e => e.type));
+    
+    // Keep existing types that are in use
+    const preservedTypes = entityTypes.filter(t => typesInUse.has(t.key));
+    
+    // Get default types that should be added (not already present)
+    const existingTypeKeys = new Set(preservedTypes.map(t => t.key));
+    const defaultTypesToAdd = DEFAULT_ENTITY_TYPES.filter(dt => !existingTypeKeys.has(dt.key));
+    
+    // Merge: preserved types + missing default types
+    const mergedTypes = [...preservedTypes, ...defaultTypesToAdd];
+    
+    onEntityTypesChange(mergedTypes);
+    onPromptSettingsChange(DEFAULT_PROMPT_SETTINGS);
+    
+    toast({
+      title: "Settings Reset",
+      description: `Reset to defaults. ${preservedTypes.length} in-use types preserved, ${defaultTypesToAdd.length} default types restored.`,
+    });
+  };
+
   const handleRemoveEntityType = (key: string) => {
     const affectedCount = existingEntities.filter(e => e.type === key).length;
     if (affectedCount > 0) {
@@ -553,6 +592,18 @@ export function InputPanel({
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-6 px-2 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyEntityType(typeDef);
+                          }}
+                          title="Copy Entity Type"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-6 px-2 text-destructive hover:text-destructive"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -739,10 +790,25 @@ export function InputPanel({
                       className="h-6 px-2 text-xs font-serif text-muted-foreground"
                       onClick={() => onPromptSettingsChange({ ...promptSettings, systemPrompt: DEFAULT_SYSTEM_PROMPT })}
                     >
-                      Reset to Default
+                      Reset Prompt
                     </Button>
                   </div>
                 </div>
+              </div>
+
+              {/* Reset All Settings Button */}
+              <div className="pt-6 border-t border-border">
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  className="w-full font-serif"
+                  onClick={handleResetAllSettings}
+                >
+                  Reset All Settings to Default
+                </Button>
+                <p className="text-xs text-muted-foreground font-serif mt-2 text-center">
+                  Resets entity types and prompt settings. Types with existing entities will be preserved.
+                </p>
               </div>
             </div>
           </div>
