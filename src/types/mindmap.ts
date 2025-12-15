@@ -183,11 +183,13 @@ export interface ExtractionOptions {
 // Campaign metadata
 export interface CampaignMetadata {
   name: string;
+  description?: string; // Campaign setting/lore summary for AI context
   createdAt: string; // ISO date string
 }
 
 export const DEFAULT_CAMPAIGN_METADATA: CampaignMetadata = {
   name: 'Untitled Campaign',
+  description: '',
   createdAt: new Date().toISOString(),
 };
 

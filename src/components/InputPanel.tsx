@@ -472,6 +472,19 @@ export function InputPanel({
                   className="font-serif"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="campaign-description" className="text-sm font-serif">
+                  Campaign Description
+                  <span className="text-muted-foreground ml-1 font-normal">(helps AI understand context)</span>
+                </Label>
+                <Textarea
+                  id="campaign-description"
+                  value={campaignMetadata.description || ''}
+                  onChange={(e) => onCampaignMetadataChange({ ...campaignMetadata, description: e.target.value })}
+                  placeholder="Describe your campaign setting, themes, and lore. This helps the AI match the tone and make relevant associations when extracting entities..."
+                  className="font-serif min-h-[80px] resize-y"
+                />
+              </div>
               <div className="space-y-1">
                 <Label className="text-sm font-serif text-muted-foreground">Created</Label>
                 <p className="text-sm font-mono text-foreground">

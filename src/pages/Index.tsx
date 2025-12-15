@@ -251,10 +251,56 @@ export default function Index() {
         ? '\n- CRITICAL: Every attribute must have meaningful content - never leave empty strings ""'
         : '';
 
+      // Build campaign context summary for AI (smart truncation)
+      const buildCampaignContext = () => {
+        const parts: string[] = [];
+        
+        // Campaign name and description
+        if (campaignMetadata.name && campaignMetadata.name !== 'Untitled Campaign') {
+          parts.push(`Campaign: ${campaignMetadata.name}`);
+        }
+        if (campaignMetadata.description?.trim()) {
+          parts.push(`Setting: ${campaignMetadata.description.trim()}`);
+        }
+        
+        // Existing entities grouped by type (names only for compactness)
+        if (existingEntities.length > 0) {
+          const grouped: Record<string, string[]> = {};
+          existingEntities.forEach(e => {
+            const typeDef = extractionOptions.entityTypes.find(t => t.key === e.type);
+            const typeLabel = typeDef?.label || e.type;
+            if (!grouped[typeLabel]) grouped[typeLabel] = [];
+            grouped[typeLabel].push(e.name);
+          });
+          
+          const entityList = Object.entries(grouped)
+            .map(([type, names]) => `${type}: ${names.slice(0, 15).join(', ')}${names.length > 15 ? ` (+${names.length - 15} more)` : ''}`)
+            .join('\n');
+          
+          parts.push(`\nExisting entities (reference these for associations):\n${entityList}`);
+        }
+        
+        // Sample writing style from existing entities (1-2 examples)
+        const entitiesWithDescriptions = existingEntities.filter(e => 
+          e.shortDescription?.trim() && e.shortDescription.length > 50
+        );
+        if (entitiesWithDescriptions.length > 0) {
+          const sample = entitiesWithDescriptions[0];
+          parts.push(`\nWriting style example:\n"${sample.shortDescription.substring(0, 300)}${sample.shortDescription.length > 300 ? '...' : ''}"`);
+        }
+        
+        return parts.length > 0 ? parts.join('\n') : '';
+      };
+
+      const campaignContext = buildCampaignContext();
+      const campaignContextSection = campaignContext 
+        ? `\nCAMPAIGN CONTEXT:\n${campaignContext}\n` 
+        : '';
+
       const systemPrompt = `You extract D&D/TTRPG campaign entities from text. Output ONLY valid JSON.
 Language: ${settings.contentLanguage}. Tone: ${settings.tone}.
 Maximum entities to extract: ${maxEntities}
-
+${campaignContextSection}
 INFERENCE LEVEL: ${inferInstruction}
 
 Entity types:
@@ -266,7 +312,7 @@ Output format:
 Rules:
 - Each entity needs unique id: "type-N" (e.g., character-1)
 - shortDescription is required for all entities
-- associatedEntities: comma-separated names of related entities
+- associatedEntities: comma-separated names of related entities from the campaign (prefer existing entity names when relevant)
 - Use consistent names when referencing the same entity
 - All attributes must be flat strings (no nested objects or arrays)
 - For attacks: use format "Name: +modifier | damage [type]" per line
