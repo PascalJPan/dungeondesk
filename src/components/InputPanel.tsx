@@ -475,7 +475,6 @@ export function InputPanel({
               <div className="space-y-2">
                 <Label htmlFor="campaign-description" className="text-sm font-serif">
                   Campaign Description
-                  <span className="text-muted-foreground ml-1 font-normal">(helps AI understand context)</span>
                 </Label>
                 <Textarea
                   id="campaign-description"
