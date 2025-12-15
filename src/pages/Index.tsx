@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, List, Sword, Network, Grid3X3, Settings, BookOpenText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, List, Sword, Network, Grid3X3, Settings, BookOpenText } from 'lucide-react';
+import logo from '@/assets/logo.png';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
 import { EntityPanel } from '@/components/EntityPanel';
@@ -968,8 +969,8 @@ ${entityExamples}`;
       {/* Header */}
       <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0 bg-card/50">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-            <BookOpen className="w-5 h-5 text-primary" />
+          <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center">
+            <img src={logo} alt="Dungeon Desk logo" className="w-8 h-8 object-contain" />
           </div>
           <h1 className="font-display text-xl text-foreground tracking-wide">
             Dungeon Desk
