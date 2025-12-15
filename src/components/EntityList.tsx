@@ -138,27 +138,27 @@ export function EntityList({
               className="pl-8 h-8 text-sm font-serif"
             />
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Toggle
-                  pressed={showNeedsReviewOnly}
-                  onPressedChange={setShowNeedsReviewOnly}
-                  size="sm"
-                  className="h-8 px-2 data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600"
-                  aria-label="Filter by review status"
-                >
-                  <AlertCircle className="w-4 h-4" />
-                  {needsReviewCount > 0 && (
+          {needsReviewCount > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Toggle
+                    pressed={showNeedsReviewOnly}
+                    onPressedChange={setShowNeedsReviewOnly}
+                    size="sm"
+                    className="h-8 px-2 data-[state=on]:bg-amber-500/20 data-[state=on]:text-amber-600"
+                    aria-label="Filter by review status"
+                  >
+                    <AlertCircle className="w-4 h-4" />
                     <span className="ml-1 text-xs">{needsReviewCount}</span>
-                  )}
-                </Toggle>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Show only entities needing review ({needsReviewCount})</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                  </Toggle>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Show only entities needing review ({needsReviewCount})</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </div>
 
