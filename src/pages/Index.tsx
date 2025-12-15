@@ -120,7 +120,8 @@ export default function Index() {
     text: string, 
     extractionOptions: ExtractionOptions,
     keepExisting: boolean,
-    openAiApiKey: string
+    openAiApiKey: string,
+    maxEntities: number = 1
   ) => {
     const startTime = Date.now();
     
@@ -148,6 +149,7 @@ export default function Index() {
       const systemPrompt = `You extract D&D/TTRPG campaign entities from text. Output ONLY valid JSON.
 Language: ${settings.contentLanguage}. Tone: ${settings.tone}.
 Infer missing info: ${settings.inferLevel <= 2 ? 'rarely' : settings.inferLevel >= 4 ? 'often' : 'sometimes'}.
+Maximum entities to extract: ${maxEntities}
 
 Entity types: ${extractionOptions.entityTypes.map(t => `${t.label} (${t.key})`).join(', ')}
 
@@ -158,7 +160,11 @@ Rules:
 - Each entity needs unique id: "type-N" (e.g., character-1)
 - shortDescription is required for all entities
 - associatedEntities: comma-separated names of related entities
-- Use consistent names when referencing the same entity`;
+- Use consistent names when referencing the same entity
+- All attributes must be flat strings (no nested objects or arrays)
+- For attacks: use format "Name: +modifier | damage [type]" per line
+- For speed: default is "9" (always in meters as a string)
+- Every entity must have "review": false`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -202,9 +208,15 @@ Rules:
       const result = JSON.parse(jsonMatch[0]);
       const processingTime = Date.now() - startTime;
 
+      // Ensure all extracted entities have review:false
+      const extractedEntities = (result.entities || []).map((e: CampaignEntity) => ({
+        ...e,
+        review: false,
+      }));
+
       const finalEntities = keepExisting 
-        ? mergeEntities(existingEntities, result.entities || [])
-        : (result.entities || []);
+        ? mergeEntities(existingEntities, extractedEntities)
+        : extractedEntities;
 
       setCampaignData({
         entities: finalEntities,
@@ -221,8 +233,8 @@ Rules:
       toast({
         title: "Campaign extracted",
         description: keepExisting 
-          ? `Merged ${(result.entities || []).length} entities (${addedCount} new)`
-          : `Found ${(result.entities || []).length} entities`,
+          ? `Merged ${extractedEntities.length} entities (${addedCount} new)`
+          : `Found ${extractedEntities.length} entities`,
       });
 
     } catch (error) {
@@ -323,8 +335,10 @@ Rules:
   ) => {
     const existingEntities = campaignData?.entities || [];
     
-    // Fix duplicate IDs in imported data first
-    const { entities: fixedImportedEntities, fixedCount } = fixDuplicateIds(data.entities);
+    // Fix duplicate IDs in imported data first and ensure all have review:false
+    const { entities: fixedImportedEntities, fixedCount } = fixDuplicateIds(
+      data.entities.map(e => ({ ...e, review: e.review ?? false }))
+    );
     
     let finalEntities = keepEntities 
       ? mergeEntities(existingEntities, fixedImportedEntities)

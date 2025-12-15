@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Plus, Search } from 'lucide-react';
+import { ChevronDown, Plus, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CampaignData, CampaignEntity, EntityTypeDef, getEntityColor } from '@/types/mindmap';
@@ -158,7 +158,14 @@ export function EntityList({ data, entityTypes, selectedEntityId, onSelectEntity
                           selectedEntityId === entity.id && "bg-primary/10 border border-primary/30"
                         )}
                       >
-                        <p className="font-medium text-sm truncate font-serif">{entity.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-sm truncate font-serif flex-1">{entity.name}</p>
+                          {entity.review === false ? (
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground line-clamp-2 font-serif">
                           {entity.shortDescription || 'No description'}
                         </p>

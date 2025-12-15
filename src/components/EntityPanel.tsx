@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Plus, Minus } from 'lucide-react';
+import { BookOpen, Plus, Minus, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -275,6 +275,22 @@ export function EntityPanel({
                 className="font-serif font-semibold text-lg text-foreground h-7 px-1 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 caret-slim"
                 placeholder="Entity name"
               />
+              {/* Review toggle */}
+              <button
+                onClick={() => {
+                  const updated = { ...editedEntity, review: !editedEntity.review };
+                  setEditedEntity(updated);
+                  onSave(updated);
+                }}
+                className="shrink-0 p-1 rounded hover:bg-muted/50 transition-colors"
+                title={editedEntity.review ? 'Approved - click to mark for review' : 'Needs review - click to approve'}
+              >
+                {editedEntity.review ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-amber-500" />
+                )}
+              </button>
             </div>
             <Badge 
               variant="outline"
