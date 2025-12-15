@@ -395,8 +395,8 @@ Rules:
       }
     }
 
-    // Import combat state if present and not keeping entities
-    if (data.combatState && !keepEntities) {
+    // Import combat state if present (always restore combat state from import)
+    if (data.combatState) {
       setCombatants(data.combatState.combatants);
       setActiveCombatantIds(new Set(data.combatState.activeCombatantIds));
       setCombatRound(data.combatState.round);
