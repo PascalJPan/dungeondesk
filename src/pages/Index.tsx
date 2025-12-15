@@ -216,23 +216,49 @@ export default function Index() {
       const existingEntities = campaignData?.entities || [];
 
       // Build prompt for OpenAI
-      const entitySchemas = extractionOptions.entityTypes.map(type => {
-        const attrs = type.attributes.map(attr => `"${attr.key}": ""`).join(', ');
-        return `{ "id": "${type.key}-N", "type": "${type.key}", "name": "...", ${attrs} }`;
-      }).join('\n');
-
       const settings = extractionOptions.promptSettings || {
         contentLanguage: 'English',
         tone: 'High Fantasy',
         inferLevel: 3,
       };
 
+      // Build entity schemas with descriptive placeholders instead of empty strings
+      const entitySchemas = extractionOptions.entityTypes.map(type => {
+        const attrs = type.attributes.map(attr => `"${attr.key}": "[${attr.label}]"`).join(', ');
+        return `{ "id": "${type.key}-N", "type": "${type.key}", "name": "[entity name]", ${attrs} }`;
+      }).join('\n');
+
+      // Build entity type descriptions with extraction prompts
+      const entityTypeDescriptions = extractionOptions.entityTypes.map(type => {
+        let desc = `- ${type.label} (${type.key}): attributes are ${type.attributes.map(a => a.label).join(', ')}`;
+        if (type.extractionPrompt) {
+          desc += `\n  Guidance: ${type.extractionPrompt}`;
+        }
+        return desc;
+      }).join('\n');
+
+      // Map inferLevel to clear instructions
+      const inferLevelInstructions: Record<number, string> = {
+        1: 'NEVER infer or invent information. Only use content explicitly stated in the source text. Leave fields empty if information is not found.',
+        2: 'RARELY infer information. Only make obvious deductions from context. Prefer leaving fields empty over guessing.',
+        3: 'SOMETIMES infer information. Make reasonable deductions from context when helpful, but don\'t invent major details.',
+        4: 'OFTEN infer information. Fill most fields with reasonable content based on context, genre conventions, and common sense.',
+        5: 'ALWAYS fill every field. Never leave any attribute empty. If information is not in the source text, create plausible, fitting content that matches the tone and context. Invent details as needed.',
+      };
+
+      const inferInstruction = inferLevelInstructions[settings.inferLevel] || inferLevelInstructions[3];
+      const fillEmptyFieldsRule = settings.inferLevel >= 4 
+        ? '\n- CRITICAL: Every attribute must have meaningful content - never leave empty strings ""'
+        : '';
+
       const systemPrompt = `You extract D&D/TTRPG campaign entities from text. Output ONLY valid JSON.
 Language: ${settings.contentLanguage}. Tone: ${settings.tone}.
-Infer missing info: ${settings.inferLevel <= 2 ? 'rarely' : settings.inferLevel >= 4 ? 'often' : 'sometimes'}.
 Maximum entities to extract: ${maxEntities}
 
-Entity types: ${extractionOptions.entityTypes.map(t => `${t.label} (${t.key})`).join(', ')}
+INFERENCE LEVEL: ${inferInstruction}
+
+Entity types:
+${entityTypeDescriptions}
 
 Output format:
 {"entities": [${entitySchemas}]}
@@ -245,7 +271,7 @@ Rules:
 - All attributes must be flat strings (no nested objects or arrays)
 - For attacks: use format "Name: +modifier | damage [type]" per line
 - For speed: default is "9" (always in meters as a string)
-- Every entity must have "review": false`;
+- Every entity must have "review": false${fillEmptyFieldsRule}`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
