@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Plus, Minus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Plus, Minus, AlertCircle, CheckCircle2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Select,
   SelectContent,
@@ -37,6 +38,7 @@ interface EntityPanelProps {
   onSave: (entity: CampaignEntity) => void;
   onDelete: (entityId: string) => void;
   onEntityClick: (entity: CampaignEntity) => void;
+  onDuplicate?: (entity: CampaignEntity) => void;
 }
 
 export function EntityPanel({ 
@@ -45,7 +47,8 @@ export function EntityPanel({
   entities, 
   onSave, 
   onDelete, 
-  onEntityClick 
+  onEntityClick,
+  onDuplicate,
 }: EntityPanelProps) {
   const [editedEntity, setEditedEntity] = useState<CampaignEntity | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -276,21 +279,29 @@ export function EntityPanel({
                 placeholder="Entity name"
               />
               {/* Review toggle */}
-              <button
-                onClick={() => {
-                  const updated = { ...editedEntity, review: !editedEntity.review };
-                  setEditedEntity(updated);
-                  onSave(updated);
-                }}
-                className="shrink-0 p-1 rounded hover:bg-muted/50 transition-colors"
-                title={editedEntity.review ? 'Approved - click to mark for review' : 'Needs review - click to approve'}
-              >
-                {editedEntity.review ? (
-                  <CheckCircle2 className="w-5 h-5 text-foreground" />
-                ) : (
-                  <AlertCircle className="w-5 h-5 text-amber-500" />
-                )}
-              </button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => {
+                        const updated = { ...editedEntity, review: !editedEntity.review };
+                        setEditedEntity(updated);
+                        onSave(updated);
+                      }}
+                      className="shrink-0 p-1 rounded hover:bg-muted/50 transition-colors"
+                    >
+                      {editedEntity.review ? (
+                        <CheckCircle2 className="w-5 h-5 text-foreground" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-amber-500" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{editedEntity.review ? 'Approved - click to mark for review' : 'Needs review - click to approve'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <Badge 
               variant="outline"
@@ -321,8 +332,28 @@ export function EntityPanel({
             </div>
           )}
           
-          {/* Delete Button - inline at bottom */}
-          <div className="flex justify-end pt-2">
+          {/* Action Buttons - inline at bottom */}
+          <div className="flex justify-end gap-2 pt-2">
+            {onDuplicate && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => onDuplicate(entity)}
+                    >
+                      <Copy className="w-3 h-3 mr-1" />
+                      Duplicate
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Create a copy of this entity</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             <Button
               variant="ghost"
               size="sm"
