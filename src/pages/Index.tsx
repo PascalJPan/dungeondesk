@@ -526,7 +526,7 @@ Rules:
       processingTime: 0,
     });
     
-    // Handle entity types based on mergeTypes flag
+    // Handle entity types based on mergeTypes and keepMetadata flags
     if (data.entityTypes && data.entityTypes.length > 0) {
       if (mergeTypes) {
         // Merge new types and attributes
@@ -547,8 +547,11 @@ Rules:
           }
         });
         setEntityTypes(mergedTypes);
+      } else if (!keepMetadata) {
+        // Replace entity types completely when not merging and not keeping metadata
+        setEntityTypes(data.entityTypes);
       }
-      // If mergeTypes=false, keep existing entityTypes unchanged
+      // If mergeTypes=false and keepMetadata=true, keep existing entityTypes unchanged
     }
 
     // Import prompt settings if present and not keeping metadata
