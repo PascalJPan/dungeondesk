@@ -1,5 +1,6 @@
-import { useCallback, useEffect } from 'react';
-import { CampaignData, EntityTypeDef, PromptSettings, CampaignMetadata, CombatState } from '@/types/mindmap';
+import { useCallback } from 'react';
+import { CampaignData, EntityTypeDef, PromptSettings, CampaignMetadata } from '@/types/mindmap';
+import { CombatInstance } from '@/components/CombatTracker';
 
 const STORAGE_KEYS = {
   campaignData: 'dungeondesk-campaign-data',
@@ -16,14 +17,8 @@ interface PlacedCard {
   col: number;
 }
 
-interface CombatantState {
-  currentHP: number;
-  initiative: number;
-}
-
-interface StoredCombatState {
-  combatants: Record<string, CombatantState>;
-  activeCombatantIds: string[];
+export interface StoredCombatState {
+  combatInstances: CombatInstance[];
   round: number;
   currentTurnId: string | null;
 }

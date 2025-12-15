@@ -576,7 +576,21 @@ export function InputPanel({
                         />
                       </div>
 
-                      {/* Attributes */}
+                      {/* Combat Eligible Toggle */}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`combat-eligible-${typeDef.key}`}
+                          checked={typeDef.combatEligible || false}
+                          onCheckedChange={(checked) => handleUpdateEntityType(typeDef.key, { combatEligible: !!checked })}
+                        />
+                        <Label 
+                          htmlFor={`combat-eligible-${typeDef.key}`}
+                          className="text-sm font-serif cursor-pointer"
+                        >
+                          Combat Eligible
+                        </Label>
+                        <span className="text-xs text-muted-foreground">(can be added to combat tracker)</span>
+                      </div>
                       <div className="space-y-2">
                         <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
                           Attributes

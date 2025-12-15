@@ -11,9 +11,15 @@ import {
   CampaignEntity, 
   EntityTypeDef,
   getEntityColor,
+  getEntityLabel,
 } from '@/types/mindmap';
 
-interface CombatantState {
+// Combat instance: represents a single combatant in combat
+// instanceId format: "entityId" for first instance, "entityId#2", "entityId#3", etc.
+export interface CombatInstance {
+  instanceId: string;
+  entityId: string;
+  instanceNumber: number; // 1 for first, 2 for second, etc.
   currentHP: number;
   initiative: number;
 }
@@ -23,11 +29,9 @@ interface CombatTrackerProps {
   entityTypes: EntityTypeDef[];
   onEntitySelect: (entity: CampaignEntity | null) => void;
   selectedEntityId: string | null;
-  // Lifted state
-  combatants: Record<string, CombatantState>;
-  setCombatants: React.Dispatch<React.SetStateAction<Record<string, CombatantState>>>;
-  activeCombatantIds: Set<string>;
-  setActiveCombatantIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  // Lifted state - now uses instances
+  combatInstances: CombatInstance[];
+  setCombatInstances: React.Dispatch<React.SetStateAction<CombatInstance[]>>;
   round: number;
   setRound: React.Dispatch<React.SetStateAction<number>>;
   currentTurnId: string | null;
@@ -39,10 +43,8 @@ export function CombatTracker({
   entityTypes, 
   onEntitySelect, 
   selectedEntityId, 
-  combatants,
-  setCombatants,
-  activeCombatantIds,
-  setActiveCombatantIds,
+  combatInstances,
+  setCombatInstances,
   round,
   setRound,
   currentTurnId,
@@ -50,100 +52,115 @@ export function CombatTracker({
 }: CombatTrackerProps) {
   const [showAddDialog, setShowAddDialog] = React.useState(false);
 
-  // Get entities that have combat stats (monsters and characters)
+  // Get combat-eligible entity types
+  const combatEligibleTypes = entityTypes.filter(t => t.combatEligible).map(t => t.key);
+
+  // Get entities that can be in combat
   const allCombatEntities = data?.entities.filter(
-    e => e.type === 'monster' || e.type === 'character'
+    e => combatEligibleTypes.includes(e.type)
   ) || [];
 
-  // Only show entities that are in active combat
-  const combatEntities = allCombatEntities.filter(e => activeCombatantIds.has(e.id));
-
-  const getCombatantState = (entity: CampaignEntity): CombatantState => {
-    if (combatants[entity.id]) return combatants[entity.id];
-    const hp = parseInt(entity.healthPoints) || 0;
-    return { currentHP: hp, initiative: 0 };
+  // Get entity by ID
+  const getEntity = (entityId: string): CampaignEntity | undefined => {
+    return allCombatEntities.find(e => e.id === entityId);
   };
 
-  const updateCombatant = (entityId: string, updates: Partial<CombatantState>) => {
-    const entity = allCombatEntities.find(e => e.id === entityId);
-    if (!entity) return;
-    
-    setCombatants(prev => ({
-      ...prev,
-      [entityId]: { ...getCombatantState(entity), ...prev[entityId], ...updates }
-    }));
+  // Get display name for instance
+  const getInstanceDisplayName = (instance: CombatInstance, entity: CampaignEntity): string => {
+    const instanceCount = combatInstances.filter(i => i.entityId === instance.entityId).length;
+    if (instanceCount > 1) {
+      return `${entity.name} #${instance.instanceNumber}`;
+    }
+    return entity.name;
   };
 
-  const adjustHP = (entity: CampaignEntity, delta: number) => {
-    const current = getCombatantState(entity);
+  // Update a combat instance
+  const updateInstance = (instanceId: string, updates: Partial<CombatInstance>) => {
+    setCombatInstances(prev => prev.map(inst => 
+      inst.instanceId === instanceId ? { ...inst, ...updates } : inst
+    ));
+  };
+
+  const adjustHP = (instance: CombatInstance, entity: CampaignEntity, delta: number) => {
     const maxHP = parseInt(entity.healthPoints) || 0;
-    const newHP = Math.max(0, Math.min(maxHP, current.currentHP + delta));
-    updateCombatant(entity.id, { currentHP: newHP });
+    const newHP = Math.max(0, Math.min(maxHP, instance.currentHP + delta));
+    updateInstance(instance.instanceId, { currentHP: newHP });
   };
 
   const resetCombat = () => {
-    setCombatants({});
+    setCombatInstances([]);
     setRound(1);
-    setActiveCombatantIds(new Set());
     setCurrentTurnId(null);
     setShowAddDialog(false);
   };
 
   const addToCombat = (entityId: string) => {
-    setActiveCombatantIds(prev => new Set([...prev, entityId]));
+    const entity = getEntity(entityId);
+    if (!entity) return;
+    
+    // Find how many instances of this entity already exist
+    const existingInstances = combatInstances.filter(i => i.entityId === entityId);
+    const nextNumber = existingInstances.length + 1;
+    const instanceId = nextNumber === 1 ? entityId : `${entityId}#${nextNumber}`;
+    
+    const hp = parseInt(entity.healthPoints) || 0;
+    
+    setCombatInstances(prev => [...prev, {
+      instanceId,
+      entityId,
+      instanceNumber: nextNumber,
+      currentHP: hp,
+      initiative: 0,
+    }]);
   };
 
-  const removeFromCombat = (entityId: string) => {
-    setActiveCombatantIds(prev => {
-      const next = new Set(prev);
-      next.delete(entityId);
-      return next;
-    });
-    setCombatants(prev => {
-      const next = { ...prev };
-      delete next[entityId];
-      return next;
-    });
-    // Reset turn if removed entity had turn
-    if (currentTurnId === entityId) {
+  const removeFromCombat = (instanceId: string) => {
+    setCombatInstances(prev => prev.filter(inst => inst.instanceId !== instanceId));
+    if (currentTurnId === instanceId) {
       setCurrentTurnId(null);
     }
   };
 
   // Roll initiative for all combatants
   const rollAllInitiative = () => {
-    combatEntities.forEach(entity => {
-      const roll = Math.floor(Math.random() * 20) + 1;
-      updateCombatant(entity.id, { initiative: roll });
-    });
+    setCombatInstances(prev => prev.map(inst => ({
+      ...inst,
+      initiative: Math.floor(Math.random() * 20) + 1,
+    })));
   };
 
-  const availableToAdd = allCombatEntities.filter(e => !activeCombatantIds.has(e.id));
-
-  // Sort by initiative
-  const sortedCombatants = [...combatEntities].sort((a, b) => {
-    const initA = combatants[a.id]?.initiative || 0;
-    const initB = combatants[b.id]?.initiative || 0;
-    return initB - initA;
+  // Sort available entities by type then alphabetically
+  const sortedAvailableEntities = [...allCombatEntities].sort((a, b) => {
+    // First by type
+    const typeOrder = combatEligibleTypes.indexOf(a.type) - combatEligibleTypes.indexOf(b.type);
+    if (typeOrder !== 0) return typeOrder;
+    // Then alphabetically
+    return a.name.localeCompare(b.name);
   });
+
+  // Get count of instances for each entity
+  const getInstanceCount = (entityId: string): number => {
+    return combatInstances.filter(i => i.entityId === entityId).length;
+  };
+
+  // Sort combatants by initiative
+  const sortedCombatants = [...combatInstances].sort((a, b) => b.initiative - a.initiative);
 
   // Next turn handler
   const handleNextTurn = () => {
     if (sortedCombatants.length === 0) return;
     
     if (!currentTurnId) {
-      // Start with first combatant
-      setCurrentTurnId(sortedCombatants[0].id);
+      setCurrentTurnId(sortedCombatants[0].instanceId);
       return;
     }
     
-    const currentIndex = sortedCombatants.findIndex(c => c.id === currentTurnId);
+    const currentIndex = sortedCombatants.findIndex(c => c.instanceId === currentTurnId);
     if (currentIndex === -1 || currentIndex === sortedCombatants.length - 1) {
-      // Go back to first, increment round
-      setCurrentTurnId(sortedCombatants[0].id);
+      setCurrentTurnId(sortedCombatants[0].instanceId);
       setRound(r => r + 1);
     } else {
-      setCurrentTurnId(sortedCombatants[currentIndex + 1].id);
+      setCurrentTurnId(sortedCombatants[currentIndex + 1].instanceId);
     }
   };
 
@@ -152,7 +169,10 @@ export function CombatTracker({
       <div className="h-full flex flex-col items-center justify-center p-6 text-muted-foreground">
         <Sword className="w-12 h-12 mb-4 opacity-50" />
         <p className="text-sm text-center font-serif">
-          No monsters or characters available for combat tracking
+          No combat-eligible entities available
+        </p>
+        <p className="text-xs text-center mt-2">
+          Enable "Combat Eligible" in entity type settings
         </p>
       </div>
     );
@@ -180,13 +200,15 @@ export function CombatTracker({
               </DialogHeader>
               <ScrollArea className="max-h-80">
                 <div className="space-y-2 pr-4">
-                  {availableToAdd.length === 0 ? (
+                  {sortedAvailableEntities.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4 font-serif">
-                      All characters and monsters are in combat
+                      No combat-eligible entities available
                     </p>
                   ) : (
-                    availableToAdd.map(entity => {
+                    sortedAvailableEntities.map(entity => {
                       const color = getEntityColor(entityTypes, entity.type);
+                      const typeLabel = getEntityLabel(entityTypes, entity.type);
+                      const instanceCount = getInstanceCount(entity.id);
                       return (
                         <div 
                           key={entity.id}
@@ -198,19 +220,22 @@ export function CombatTracker({
                               style={{ backgroundColor: color }}
                             />
                             <span className="font-serif">{entity.name}</span>
+                            {instanceCount > 0 && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                ×{instanceCount}
+                              </Badge>
+                            )}
                             <Badge 
                               variant="outline"
                               className="text-[10px]"
                             >
-                              {entity.type}
+                              {typeLabel}
                             </Badge>
                           </div>
                           <Button 
                             size="sm" 
                             variant="ghost"
-                            onClick={() => {
-                              addToCombat(entity.id);
-                            }}
+                            onClick={() => addToCombat(entity.id)}
                           >
                             <Plus className="w-4 h-4" />
                           </Button>
@@ -222,7 +247,7 @@ export function CombatTracker({
               </ScrollArea>
             </DialogContent>
           </Dialog>
-          {combatEntities.length > 0 && (
+          {combatInstances.length > 0 && (
             <Button variant="outline" size="sm" onClick={rollAllInitiative} title="Roll initiative for all combatants">
               <Dices className="w-4 h-4 mr-1" />
               Roll Init
@@ -243,26 +268,29 @@ export function CombatTracker({
 
       {/* Combat List */}
       <ScrollArea className="flex-1">
-        {combatEntities.length === 0 ? (
+        {combatInstances.length === 0 ? (
           <div className="p-6 text-center text-muted-foreground">
             <p className="font-serif text-sm">No combatants added yet</p>
-            <p className="text-xs mt-1">Click "Add" to add monsters or characters</p>
+            <p className="text-xs mt-1">Click "Add" to add entities to combat</p>
           </div>
         ) : (
         <div className="p-4 space-y-3">
-          {sortedCombatants.map(entity => {
+          {sortedCombatants.map(instance => {
+            const entity = getEntity(instance.entityId);
+            if (!entity) return null;
+            
             const color = getEntityColor(entityTypes, entity.type);
-            const state = getCombatantState(entity);
             const maxHP = parseInt(entity.healthPoints) || 0;
-            const hpPercent = maxHP > 0 ? (state.currentHP / maxHP) * 100 : 100;
+            const hpPercent = maxHP > 0 ? (instance.currentHP / maxHP) * 100 : 100;
             const isSelected = entity.id === selectedEntityId;
-            const isCurrentTurn = entity.id === currentTurnId;
+            const isCurrentTurn = instance.instanceId === currentTurnId;
             const ac = entity.armorClass || '—';
             const speed = entity.speed || '—';
+            const displayName = getInstanceDisplayName(instance, entity);
 
             return (
             <Card 
-                key={`combat-${entity.id}`}
+                key={instance.instanceId}
                 className={`cursor-pointer transition-all ${isCurrentTurn ? 'ring-2 ring-primary bg-primary/5' : ''} ${isSelected && !isCurrentTurn ? 'ring-2 ring-muted-foreground' : 'hover:bg-muted/50'}`}
                 onClick={() => onEntitySelect(entity)}
               >
@@ -276,7 +304,7 @@ export function CombatTracker({
                         className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: color }}
                       />
-                      <CardTitle className="text-base font-display">{entity.name}</CardTitle>
+                      <CardTitle className="text-base font-display">{displayName}</CardTitle>
                       <Badge 
                         style={{ backgroundColor: color }}
                         className="text-white text-[10px]"
@@ -289,8 +317,8 @@ export function CombatTracker({
                         <span className="text-xs text-muted-foreground font-mono">Init:</span>
                         <Input
                           type="number"
-                          value={state.initiative}
-                          onChange={(e) => updateCombatant(entity.id, { initiative: parseInt(e.target.value) || 0 })}
+                          value={instance.initiative}
+                          onChange={(e) => updateInstance(instance.instanceId, { initiative: parseInt(e.target.value) || 0 })}
                           className="w-14 h-7 text-center font-mono text-sm"
                           onClick={(e) => e.stopPropagation()}
                         />
@@ -302,7 +330,7 @@ export function CombatTracker({
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          removeFromCombat(entity.id);
+                          removeFromCombat(instance.instanceId);
                         }}
                         title="Remove from combat"
                       >
@@ -330,7 +358,7 @@ export function CombatTracker({
                       <div className="flex items-center gap-1">
                         <Heart className="w-4 h-4 text-destructive" />
                         <span className="text-sm font-mono">
-                          {state.currentHP} / {maxHP}
+                          {instance.currentHP} / {maxHP}
                         </span>
                       </div>
                       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -338,14 +366,14 @@ export function CombatTracker({
                           variant="outline" 
                           size="icon" 
                           className="h-7 w-7"
-                          onClick={() => adjustHP(entity, -1)}
+                          onClick={() => adjustHP(instance, entity, -1)}
                         >
                           <Minus className="w-3 h-3" />
                         </Button>
                         <Input
                           type="number"
-                          value={state.currentHP}
-                          onChange={(e) => updateCombatant(entity.id, { 
+                          value={instance.currentHP}
+                          onChange={(e) => updateInstance(instance.instanceId, { 
                             currentHP: Math.max(0, Math.min(maxHP, parseInt(e.target.value) || 0)) 
                           })}
                           className="w-14 h-7 text-center font-mono text-sm"
@@ -354,7 +382,7 @@ export function CombatTracker({
                           variant="outline" 
                           size="icon" 
                           className="h-7 w-7"
-                          onClick={() => adjustHP(entity, 1)}
+                          onClick={() => adjustHP(instance, entity, 1)}
                         >
                           <Plus className="w-3 h-3" />
                         </Button>
