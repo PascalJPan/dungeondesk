@@ -23,9 +23,9 @@ interface TableViewProps {
   setPlacedCards: React.Dispatch<React.SetStateAction<PlacedCard[]>>;
 }
 
-// Fixed 4x5 grid = 20 squares
-const GRID_ROWS = 4;
-const GRID_COLS = 5;
+// Fixed 8x4 grid = 32 squares (4x4 visible, scroll for more)
+const GRID_ROWS = 8;
+const GRID_COLS = 4;
 
 export function TableView({ 
   data, 
@@ -91,15 +91,16 @@ export function TableView({
   }
 
   return (
-    <div className="h-full flex flex-col p-4">
-      <div className="flex-1 flex items-center justify-center">
-        <div 
-          className="grid gap-3"
-          style={{ 
-            gridTemplateColumns: `repeat(${GRID_COLS}, 140px)`,
-            gridTemplateRows: `repeat(${GRID_ROWS}, 180px)`,
-          }}
-        >
+    <div className="h-full flex flex-col p-4 overflow-hidden">
+      <ScrollArea className="flex-1">
+        <div className="flex justify-center py-2">
+          <div 
+            className="grid gap-3"
+            style={{ 
+              gridTemplateColumns: `repeat(${GRID_COLS}, 140px)`,
+              gridTemplateRows: `repeat(${GRID_ROWS}, 180px)`,
+            }}
+          >
           {Array.from({ length: GRID_ROWS * GRID_COLS }).map((_, idx) => {
             const row = Math.floor(idx / GRID_COLS);
             const col = idx % GRID_COLS;
@@ -221,8 +222,9 @@ export function TableView({
               </div>
             );
           })}
+          </div>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }
