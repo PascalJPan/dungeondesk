@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, List, Sword, Network, Grid3X3, Settings, BookOpenText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, List, Sword, Network, Grid3X3, Settings, BookOpenText, Plus } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { InputPanel } from '@/components/InputPanel';
 import { EntityList } from '@/components/EntityList';
@@ -9,6 +9,7 @@ import { TableView } from '@/components/TableView';
 import { CombatTracker, CombatInstance } from '@/components/CombatTracker';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   CampaignData, 
   CampaignEntity, 
@@ -1012,7 +1013,7 @@ ${entityExamples}`;
             className="font-serif"
           >
             <Grid3X3 className="w-4 h-4 mr-1" />
-            Table
+            Desk
           </Button>
           <Button
             variant={viewMode === 'combat' ? 'secondary' : 'ghost'}
@@ -1023,6 +1024,37 @@ ${entityExamples}`;
             <Sword className="w-4 h-4 mr-1" />
             Combat
           </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="font-serif px-2"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-2 z-50 bg-popover" align="end">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground px-2 py-1">Add new entity</p>
+                {entityTypes.map(typeDef => (
+                  <button
+                    key={typeDef.key}
+                    className="w-full text-left px-2 py-1.5 rounded hover:bg-muted flex items-center gap-2"
+                    onClick={() => handleAddEntity(typeDef)}
+                  >
+                    <span 
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: typeDef.color }}
+                    />
+                    <span className="text-sm font-serif">
+                      {typeDef.label.endsWith('s') ? typeDef.label.slice(0, -1) : typeDef.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </header>
 

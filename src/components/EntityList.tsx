@@ -94,9 +94,9 @@ export function EntityList({
     }
   });
 
-  // Sort entities within each group alphabetically by name
+  // Sort entities within each group alphabetically by name (handle empty names)
   Object.keys(entityGroups).forEach(key => {
-    entityGroups[key].sort((a, b) => a.name.localeCompare(b.name));
+    entityGroups[key].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   });
 
   // Filter entities by search query and review status

@@ -566,12 +566,6 @@ function NodeGraphInner({
         proOptions={{ hideAttribution: true }}
       />
       
-      {/* Selected edge hint */}
-      {selectedEdgeId && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-card/90 backdrop-blur-sm border border-border rounded-lg px-3 py-1.5 text-xs font-serif text-muted-foreground">
-          Press <kbd className="px-1.5 py-0.5 bg-muted rounded text-foreground">Backspace</kbd> to delete connection
-        </div>
-      )}
       
       {/* Type filter buttons and connect button at bottom center */}
       {presentTypes.length > 0 && (
