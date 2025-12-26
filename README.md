@@ -2,7 +2,8 @@
 
 A powerful campaign management tool for tabletop RPG Game Masters. Organize your world-building, track entities, manage combat, and export content for AI-assisted creation.
 
-![Dungeon Desk Interface](https://img.shields.io/badge/Status-Active-success) ![React](https://img.shields.io/badge/React-18-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Tailwind](https://img.shields.io/badge/Tailwind-CSS-38bdf8)
+It is online and ready to use here: https://pascalpan.com/creations/DungeonDesk/
+(Your progess is only cached so better download the campaign json via export after each session ;))
 
 ## ✨ Features
 
